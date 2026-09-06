@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use anyhow::{Result, anyhow};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use reqwest::Client;
-use serde::Deserialize;
+use secrecy::{ExposeSecret, SecretString};
+use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::config::Config;
 
@@ -12,6 +14,8 @@ pub struct Authenticator {
     client: Client,
     issuer: String,
     audience: String,
+    client_secret: SecretString,
+    redirect_uri: String,
     allowed_emails: HashSet<String>,
 }
 
@@ -24,14 +28,54 @@ pub struct Claims {
     pub hd: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OAuthTokenResponse {
+    pub access_token: String,
+    pub expires_in: u64,
+    pub id_token: Option<String>,
+    pub token_type: String,
+}
+
 impl Authenticator {
     pub fn new(config: &Config) -> Self {
         Self {
             client: Client::new(),
             issuer: config.google_issuer.clone(),
             audience: config.google_client_id().to_string(),
+            client_secret: config.google_client_secret.clone(),
+            redirect_uri: config.google_redirect_uri.clone(),
             allowed_emails: config.google_allowed_emails.clone(),
         }
+    }
+
+    pub fn authorization_url(&self, state: &str) -> Result<String> {
+        let mut url = Url::parse("https://accounts.google.com/o/oauth2/v2/auth")?;
+        url.query_pairs_mut()
+            .append_pair("client_id", &self.audience)
+            .append_pair("redirect_uri", &self.redirect_uri)
+            .append_pair("response_type", "code")
+            .append_pair("scope", "openid email profile")
+            .append_pair("state", state)
+            .append_pair("access_type", "online");
+        Ok(url.into())
+    }
+
+    pub async fn exchange_code(&self, code: &str) -> Result<OAuthTokenResponse> {
+        self.client
+            .post("https://oauth2.googleapis.com/token")
+            .form(&[
+                ("code", code),
+                ("client_id", self.audience.as_str()),
+                ("client_secret", self.client_secret.expose_secret()),
+                ("redirect_uri", self.redirect_uri.as_str()),
+                ("grant_type", "authorization_code"),
+            ])
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn authenticate(&self, authorization: Option<&str>) -> Result<Claims> {

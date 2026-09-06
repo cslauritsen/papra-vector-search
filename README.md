@@ -48,6 +48,8 @@ when a required value is missing.
 | `PAPRA_WEBHOOK_SECRET` | yes | Shared secret for webhook HMAC verification |
 | `PAPRA_ORGANIZATION_ID` | yes | Organization indexed and searched by this deployment |
 | `GOOGLE_CLIENT_ID` | yes | Google OIDC audience/client ID |
+| `GOOGLE_CLIENT_SECRET` | yes | Google OAuth client secret, protected with `secrecy` |
+| `GOOGLE_REDIRECT_URI` | yes | OAuth callback URI, e.g. `http://localhost:3000/oidc/callback` |
 | `GOOGLE_ISSUER` | yes | Expected issuer, normally `https://accounts.google.com` |
 | `GOOGLE_ALLOWED_EMAILS` | yes | Comma-separated email addresses allowed to use the search UI |
 | `PAPRA_BASE_URL` | no | Base URL used to construct Papra document links |
@@ -204,7 +206,24 @@ distance:
 Do not return stored content or embeddings. Return `400` for invalid query parameters,
 `401` for missing/invalid authentication, and `500` only for unexpected server failures.
 
-## 7. Metrics
+## 7. Google OIDC login flow
+
+Implement the authorization-code flow with these endpoints:
+
+- `GET /oidc/login`: generate a cryptographically random state, store it in an
+  `HttpOnly`, `SameSite=Lax` cookie scoped to `/oidc`, and redirect to Google's
+  authorization endpoint with `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI`, `openid email
+  profile` scopes, and the state.
+- `GET /oidc/callback`: require and constant-time-compare the returned state with the
+  cookie, exchange the one-time code at Google's token endpoint using
+  `GOOGLE_CLIENT_SECRET`, and clear the state cookie.
+
+The callback returns the provider token response to the frontend over HTTPS; clients must
+use the validated OIDC `id_token` as the bearer credential for `/api/search`. Never log
+authorization codes, client secrets, access tokens, ID tokens, or state values. Reject
+missing, expired, reused, or mismatched state and do not accept arbitrary redirect URIs.
+
+## 8. Metrics
 
 Instrument the service with OpenTelemetry and export metrics through OTLP when
 `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Use an OpenTelemetry SDK/provider initialized
@@ -223,7 +242,7 @@ Do not use query text, document IDs, user emails, bearer tokens, organization ID
 unbounded error messages as metric attributes. Ensure the request counter records the final
 status code for both successful and failed requests.
 
-## 8. Logging and tracing
+## 9. Logging and tracing
 
 Use structured `tracing` logs with a configured `tracing-subscriber` layer. Every HTTP
 request must produce a standard access log containing the method, normalized route, status
@@ -252,7 +271,7 @@ and other sensitive fields; ensure secret-bearing values use `SecretString` so t
 fields cannot appear in trace output. Production log configuration must default to
 `info`, with trace payload logging opt-in.
 
-## 9. Leptos UI
+## 10. Leptos UI
 
 Provide a simple responsive page with:
 
@@ -267,7 +286,7 @@ The UI must send the bearer token on every API request. On `401`, clear the loca
 authentication state and redirect to the login flow. Do not put tokens in URLs, logs, or
 server-rendered HTML.
 
-## 10. Application structure
+## 11. Application structure
 
 Keep these concerns separate:
 
@@ -286,7 +305,7 @@ Initialize the embedding model and SQLite connection/extension once at applicati
 Do not load the model or extension per request. Use structured errors and return safe
 messages to clients while logging actionable server-side context without secrets.
 
-## 11. Acceptance criteria
+## 12. Acceptance criteria
 
 An implementation is complete when:
 
@@ -299,14 +318,16 @@ An implementation is complete when:
    rejected before any database write.
 5. Search embeds the query with the same model and returns correctly ordered results.
 6. Unauthenticated and unauthorized requests cannot search or enumerate documents.
-7. OpenTelemetry exports request counts with final status-code dimensions and search counts
+7. OIDC login validates state, exchanges the code using the configured client secret and
+   redirect URI, and never exposes credentials in logs.
+8. OpenTelemetry exports request counts with final status-code dimensions and search counts
    without high-cardinality or secret attributes.
-8. Every request emits an access log and failed requests emit an error log with duration,
+9. Every request emits an access log and failed requests emit an error log with duration,
    status, and correlation context.
-9. Startup emits redacted configuration diagnostics, and trace instrumentation covers the
+10. Startup emits redacted configuration diagnostics, and trace instrumentation covers the
    major application boundaries without leaking secrets or raw payloads.
-10. The UI handles loading, empty, error, login, and result states accessibly.
-11. Tests cover signature verification, timestamp rejection, payload validation, metadata
+11. The UI handles loading, empty, error, login, and result states accessibly.
+12. Tests cover signature verification, timestamp rejection, payload validation, metadata
    updates, content-hash persistence, title/content embedding-input hashing, re-embedding
    decisions, upsert idempotency, model/dimension compatibility, authorization, metrics,
    access/error logs, configuration redaction, payload redaction, and search ordering.

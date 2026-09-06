@@ -12,11 +12,93 @@ use chrono::Utc;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use subtle::ConstantTimeEq;
+use uuid::Uuid;
 
 use crate::{AppState, embeddings, storage, webhook};
 
 pub async fn health() -> Json<Value> {
     Json(json!({"status": "ok"}))
+}
+
+pub async fn oidc_login(State(state): State<AppState>) -> Result<Response, ApiError> {
+    let state_token = Uuid::new_v4().to_string();
+    let authorization_url = state
+        .auth
+        .authorization_url(&state_token)
+        .map_err(ApiError::internal)?;
+    let mut response = Response::new(axum::body::Body::empty());
+    *response.status_mut() = StatusCode::FOUND;
+    response.headers_mut().insert(
+        axum::http::header::LOCATION,
+        authorization_url
+            .parse()
+            .map_err(|_| ApiError::internal(anyhow::anyhow!("invalid OAuth URL")))?,
+    );
+    response.headers_mut().insert(
+        axum::http::header::SET_COOKIE,
+        format!("oidc_state={state_token}; Path=/oidc; HttpOnly; SameSite=Lax; Max-Age=600")
+            .parse()
+            .map_err(|_| ApiError::internal(anyhow::anyhow!("invalid OAuth cookie")))?,
+    );
+    Ok(response)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OidcCallbackQuery {
+    pub code: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
+}
+
+pub async fn oidc_callback(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<OidcCallbackQuery>,
+) -> Result<Response, ApiError> {
+    if let Some(error) = query.error {
+        tracing::warn!(error = %error, "OIDC provider returned an error");
+        return Err(ApiError::unauthorized("OIDC authorization was denied"));
+    }
+    let code = query
+        .code
+        .ok_or_else(|| ApiError::bad_request("missing OAuth authorization code"))?;
+    let returned_state = query
+        .state
+        .ok_or_else(|| ApiError::bad_request("missing OAuth state"))?;
+    let expected_state = cookie_value(&headers, "oidc_state")
+        .ok_or_else(|| ApiError::unauthorized("missing OAuth state cookie"))?;
+    if expected_state
+        .as_bytes()
+        .ct_eq(returned_state.as_bytes())
+        .unwrap_u8()
+        != 1
+    {
+        return Err(ApiError::unauthorized("invalid OAuth state"));
+    }
+    let tokens = state
+        .auth
+        .exchange_code(&code)
+        .await
+        .map_err(ApiError::internal)?;
+    let mut response = Json(tokens).into_response();
+    response.headers_mut().insert(
+        axum::http::header::SET_COOKIE,
+        "oidc_state=; Path=/oidc; HttpOnly; SameSite=Lax; Max-Age=0"
+            .parse()
+            .map_err(|_| ApiError::internal(anyhow::anyhow!("invalid OAuth cookie")))?,
+    );
+    Ok(response)
+}
+
+fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(axum::http::header::COOKIE)?
+        .to_str()
+        .ok()?
+        .split(';')
+        .filter_map(|part| part.trim().split_once('='))
+        .find_map(|(key, value)| (key == name).then(|| value.to_owned()))
 }
 
 pub async fn papra_webhook(

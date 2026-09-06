@@ -10,6 +10,8 @@ pub struct Config {
     pub papra_webhook_secret: SecretString,
     pub papra_organization_id: String,
     pub google_client_id: SecretString,
+    pub google_client_secret: SecretString,
+    pub google_redirect_uri: String,
     pub google_issuer: String,
     pub google_allowed_emails: HashSet<String>,
     pub papra_base_url: Option<String>,
@@ -26,6 +28,8 @@ impl fmt::Debug for Config {
             .field("papra_webhook_secret", &"[REDACTED]")
             .field("papra_organization_id", &self.papra_organization_id)
             .field("google_client_id", &"[REDACTED]")
+            .field("google_client_secret", &"[REDACTED]")
+            .field("google_redirect_uri", &self.google_redirect_uri)
             .field("google_issuer", &self.google_issuer)
             .field("google_allowed_emails", &self.google_allowed_emails)
             .field("papra_base_url", &self.papra_base_url)
@@ -84,6 +88,8 @@ impl Config {
             papra_webhook_secret: SecretString::from(required("PAPRA_WEBHOOK_SECRET")?),
             papra_organization_id: required("PAPRA_ORGANIZATION_ID")?,
             google_client_id: SecretString::from(required("GOOGLE_CLIENT_ID")?),
+            google_client_secret: SecretString::from(required("GOOGLE_CLIENT_SECRET")?),
+            google_redirect_uri: required("GOOGLE_REDIRECT_URI")?,
             google_issuer: required("GOOGLE_ISSUER")?,
             google_allowed_emails,
             papra_base_url: env::var("PAPRA_BASE_URL").ok(),
@@ -101,5 +107,9 @@ impl Config {
 
     pub fn google_client_id(&self) -> &str {
         self.google_client_id.expose_secret()
+    }
+
+    pub fn google_client_secret(&self) -> &str {
+        self.google_client_secret.expose_secret()
     }
 }

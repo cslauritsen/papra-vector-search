@@ -25,6 +25,8 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(api::health))
+        .route("/oidc/login", get(api::oidc_login))
+        .route("/oidc/callback", get(api::oidc_callback))
         .route("/webhook/papra", axum::routing::post(api::papra_webhook))
         .route("/api/search", get(api::search))
         .layer(Extension(state.metrics.clone()))

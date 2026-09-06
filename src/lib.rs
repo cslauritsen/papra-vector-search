@@ -4,7 +4,6 @@ pub mod config;
 pub mod embeddings;
 pub mod storage;
 pub mod telemetry;
-pub mod ui;
 pub mod webhook;
 
 use std::sync::{Arc, Mutex};
@@ -25,8 +24,7 @@ pub struct AppState {
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/", get(api::health))
-        .route("/ui", get(leptos_axum::render_app_to_stream(ui::App)))
+        .route("/health", get(api::health))
         .route("/oidc/login", get(api::oidc_login))
         .route("/oidc/callback", get(api::oidc_callback))
         .route("/webhook/papra", axum::routing::post(api::papra_webhook))

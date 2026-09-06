@@ -235,7 +235,7 @@ Required custom instruments:
   attributes such as `status` (`success`, `invalid_query`, `unauthorized`, `error`) and
   `result_count` only when represented by bounded buckets or omitted.
 - `papra.http.request.count`: counter incremented once for every HTTP request, with
-  `http.method`, normalized route (`/api/search`, `/webhook/papra`, or `/`), and
+  `http.method`, normalized route (`/health`, `/api/search`, `/webhook/papra`, or `/`), and
   `http.response.status_code` attributes.
 
 Do not use query text, document IDs, user emails, bearer tokens, organization IDs, or
@@ -286,21 +286,6 @@ The UI must send the bearer token on every API request. On `401`, clear the loca
 authentication state and redirect to the login flow. Do not put tokens in URLs, logs, or
 server-rendered HTML.
 
-### Serving the UI
-
-The Axum server renders the Leptos page at `GET /ui`; `GET /` remains the JSON health
-endpoint. Start the server with the normal command:
-
-```sh
-cargo run
-```
-
-Open `http://localhost:3000/ui` in a browser. The page is server-rendered by Leptos and
-uses a small client-side script for the interactive search flow. Google sign-in opens the
-OIDC flow in a same-origin popup so the callback's JSON response can be read by the
-frontend without putting the ID token in a URL or server-rendered HTML. The token is kept
-only in browser memory and is sent as a bearer header to `/api/search`.
-
 ## 11. Application structure
 
 Keep these concerns separate:
@@ -314,7 +299,6 @@ Keep these concerns separate:
 - `telemetry`: OpenTelemetry setup, metrics, and shutdown
 - `logging`: tracing subscriber, access/error logs, startup configuration diagnostics,
   and payload redaction
-- `ui`: Leptos components and authentication-aware search state
 
 Initialize the embedding model and SQLite connection/extension once at application startup.
 Do not load the model or extension per request. Use structured errors and return safe

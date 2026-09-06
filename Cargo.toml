@@ -11,8 +11,6 @@ dotenvy = "0.15"
 fastembed = "6"
 hmac = "0.12"
 http = "1"
-leptos = { version = "0.8", default-features = false, features = ["ssr"] }
-leptos_axum = "0.8"
 jsonwebtoken = "9"
 opentelemetry = "0.27"
 opentelemetry_sdk = "0.27"

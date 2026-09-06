@@ -291,6 +291,7 @@ pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response 
     let started = Instant::now();
     let method = req.method().to_string();
     let route = match req.uri().path() {
+        "/health" => "/health",
         "/api/search" => "/api/search",
         "/webhook/papra" => "/webhook/papra",
         _ => "/",
@@ -311,6 +312,7 @@ pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response 
 pub fn route_name(method: &str, path: &str) -> &'static str {
     let _ = method;
     match path {
+        "/health" => "/health",
         "/api/search" => "/api/search",
         "/webhook/papra" => "/webhook/papra",
         _ => "/",

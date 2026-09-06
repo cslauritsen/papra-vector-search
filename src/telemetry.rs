@@ -46,8 +46,29 @@ impl Metrics {
 pub fn init_logging() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .json()
-        .try_init();
+    match std::env::var("LOG_FORMAT")
+        .unwrap_or_else(|_| "pretty".to_owned())
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "json" => {
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter)
+                .json()
+                .try_init();
+        }
+        "pretty" | "human" => {
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter)
+                .pretty()
+                .try_init();
+        }
+        value => {
+            eprintln!("invalid LOG_FORMAT={value:?}; using human-readable logs");
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter)
+                .pretty()
+                .try_init();
+        }
+    }
 }

@@ -52,8 +52,10 @@ when a required value is missing.
 | `GOOGLE_REDIRECT_URI` | yes | OAuth callback URI, e.g. `http://localhost:3000/oidc/callback` |
 | `GOOGLE_ISSUER` | yes | Expected issuer, normally `https://accounts.google.com` |
 | `GOOGLE_ALLOWED_EMAILS` | yes | Comma-separated email addresses allowed to use the search UI |
+| `AUTH_ENABLED` | no | Require Google bearer authentication; defaults to `true` |
 | `PAPRA_BASE_URL` | no | Base URL used to construct Papra document links |
 | `RUST_LOG` | no | Log filter; default to `info` |
+| `LOG_FORMAT` | no | Log output format: `pretty`/`human` (default) or `json` |
 | `WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` | no | Accepted timestamp age; default to 300 |
 | `SEARCH_RESULT_LIMIT` | no | Maximum results per request; default to 20, capped at 100 |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP metrics endpoint; disable export when unset |
@@ -330,3 +332,18 @@ An implementation is complete when:
    updates, content-hash persistence, title/content embedding-input hashing, re-embedding
    decisions, upsert idempotency, model/dimension compatibility, authorization, metrics,
    access/error logs, configuration redaction, payload redaction, and search ordering.
+
+   ## 13. Frontend build
+
+   The frontend is a client-rendered Leptos SPA. Install Trunk once, then run it alongside
+   the API server:
+
+   ```sh
+   cargo install trunk
+   cargo run
+   trunk serve
+   ```
+
+   Trunk serves the SPA with hot reload on port `8080` and proxies `/api` and `/oidc` to
+   the backend on port `3000`. For a production bundle, run `trunk build --release`; the
+   server serves the resulting `dist/` directory.

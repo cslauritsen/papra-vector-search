@@ -17,24 +17,40 @@ use uuid::Uuid;
 
 use crate::{AppState, embeddings, storage, webhook};
 
-pub async fn health() -> Json<Value> {
-    Json(json!({"status": "ok"}))
+pub async fn health(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({
+        "status": "ok",
+        "auth_enabled": state.config.auth_enabled,
+    }))
 }
 
-pub async fn oidc_login(State(state): State<AppState>) -> Result<Response, ApiError> {
+#[derive(Debug, Deserialize)]
+pub struct OidcLoginQuery {
+    pub format: Option<String>,
+}
+
+pub async fn oidc_login(
+    State(state): State<AppState>,
+    Query(query): Query<OidcLoginQuery>,
+) -> Result<Response, ApiError> {
     let state_token = Uuid::new_v4().to_string();
     let authorization_url = state
         .auth
         .authorization_url(&state_token)
         .map_err(ApiError::internal)?;
-    let mut response = Response::new(axum::body::Body::empty());
-    *response.status_mut() = StatusCode::FOUND;
-    response.headers_mut().insert(
-        axum::http::header::LOCATION,
-        authorization_url
-            .parse()
-            .map_err(|_| ApiError::internal(anyhow::anyhow!("invalid OAuth URL")))?,
-    );
+    let mut response = if query.format.as_deref() == Some("json") {
+        Json(json!({ "authorization_url": authorization_url })).into_response()
+    } else {
+        let mut response = Response::new(axum::body::Body::empty());
+        *response.status_mut() = StatusCode::FOUND;
+        response.headers_mut().insert(
+            axum::http::header::LOCATION,
+            authorization_url
+                .parse()
+                .map_err(|_| ApiError::internal(anyhow::anyhow!("invalid OAuth URL")))?,
+        );
+        response
+    };
     response.headers_mut().insert(
         axum::http::header::SET_COOKIE,
         format!("oidc_state={state_token}; Path=/oidc; HttpOnly; SameSite=Lax; Max-Age=600")
@@ -81,7 +97,24 @@ pub async fn oidc_callback(
         .exchange_code(&code)
         .await
         .map_err(ApiError::internal)?;
-    let mut response = Json(tokens).into_response();
+    let token_payload = serde_json::to_string(&tokens)
+        .map_err(|error| ApiError::internal(anyhow::Error::new(error)))?
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026");
+    let callback_html = format!(
+        "<!doctype html><meta charset=\"utf-8\"><title>Signing in…</title>\
+         <p>Completing sign-in…</p><script>\
+         const tokens = {token_payload};\
+         if (window.opener) {{ window.opener.postMessage(tokens, '*'); window.close(); }}\
+         else {{ document.querySelector('p').textContent = 'Sign-in complete. You can close this window.'; }}\
+         </script>"
+    );
+    let mut response = Response::new(axum::body::Body::from(callback_html));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/html; charset=utf-8"),
+    );
     response.headers_mut().insert(
         axum::http::header::SET_COOKIE,
         "oidc_state=; Path=/oidc; HttpOnly; SameSite=Lax; Max-Age=0"
@@ -203,14 +236,16 @@ pub async fn search(
         state.metrics.search("invalid_query");
         return Err(ApiError::bad_request("limit must be between 1 and 100"));
     }
-    state
-        .auth
-        .authenticate(headers.get("authorization").and_then(|v| v.to_str().ok()))
-        .await
-        .map_err(|_| {
-            state.metrics.search("unauthorized");
-            ApiError::unauthorized("authentication failed")
-        })?;
+    if state.config.auth_enabled {
+        state
+            .auth
+            .authenticate(headers.get("authorization").and_then(|v| v.to_str().ok()))
+            .await
+            .map_err(|_| {
+                state.metrics.search("unauthorized");
+                ApiError::unauthorized("authentication failed")
+            })?;
+    }
     let vector = {
         let mut model = state.embeddings.lock().map_err(|_| {
             state.metrics.search("error");

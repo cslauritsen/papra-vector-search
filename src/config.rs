@@ -14,6 +14,7 @@ pub struct Config {
     pub google_redirect_uri: String,
     pub google_issuer: String,
     pub google_allowed_emails: HashSet<String>,
+    pub auth_enabled: bool,
     pub papra_base_url: Option<String>,
     pub webhook_timestamp_tolerance_seconds: i64,
     pub search_result_limit: usize,
@@ -32,6 +33,7 @@ impl fmt::Debug for Config {
             .field("google_redirect_uri", &self.google_redirect_uri)
             .field("google_issuer", &self.google_issuer)
             .field("google_allowed_emails", &self.google_allowed_emails)
+            .field("auth_enabled", &self.auth_enabled)
             .field("papra_base_url", &self.papra_base_url)
             .field(
                 "webhook_timestamp_tolerance_seconds",
@@ -72,6 +74,10 @@ impl Config {
         if limit == 0 {
             return Err(anyhow!("SEARCH_RESULT_LIMIT must be positive"));
         }
+        let auth_enabled = env::var("AUTH_ENABLED")
+            .unwrap_or_else(|_| "true".into())
+            .parse::<bool>()
+            .map_err(|_| anyhow!("AUTH_ENABLED must be true or false"))?;
         let google_allowed_emails = required("GOOGLE_ALLOWED_EMAILS")?
             .split(',')
             .map(|email| email.trim().to_ascii_lowercase())
@@ -92,6 +98,7 @@ impl Config {
             google_redirect_uri: required("GOOGLE_REDIRECT_URI")?,
             google_issuer: required("GOOGLE_ISSUER")?,
             google_allowed_emails,
+            auth_enabled,
             papra_base_url: env::var("PAPRA_BASE_URL").ok(),
             webhook_timestamp_tolerance_seconds: tolerance,
             search_result_limit: limit.min(100),

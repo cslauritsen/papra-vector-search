@@ -1,0 +1,19 @@
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/"
+
+[watch]
+watch = ["src", "index.html", "Trunk.toml"]
+
+[[proxy]]
+backend = "http://127.0.0.1:3000/api"
+no_redirect = true
+
+[[proxy]]
+backend = "http://127.0.0.1:3000/health"
+no_redirect = true
+
+[[proxy]]
+backend = "http://127.0.0.1:3000/oidc"
+no_redirect = true

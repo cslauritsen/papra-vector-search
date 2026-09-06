@@ -7,11 +7,11 @@ use papra_vector_search::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    telemetry::init_logging();
     if std::path::Path::new(".env").exists() {
         dotenvy::dotenv()?;
         tracing::debug!("loaded environment from .env");
     }
+    telemetry::init_logging();
     tracing::info!("starting Papra vector search");
     let config = Config::from_env()?;
     tracing::trace!(config = ?config, "validated configuration");

@@ -1,0 +1,10 @@
+[package]
+name = "papra-vector-search"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusqlite = { version = "0.40", features = ["bundled", "load_extension"] }
+fastembed = "6" # Or the latest major version
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0.104"

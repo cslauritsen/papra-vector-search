@@ -1,0 +1,8 @@
+/target
+.env
+.fastembed
+.fastembed_cache/
+*.onnx
+*.db
+*.sqlite
+*.sqlite3

@@ -49,7 +49,7 @@ when a required value is missing.
 | `PAPRA_ORGANIZATION_ID` | yes | Organization indexed and searched by this deployment |
 | `GOOGLE_CLIENT_ID` | yes | Google OIDC audience/client ID |
 | `GOOGLE_ISSUER` | yes | Expected issuer, normally `https://accounts.google.com` |
-| `GOOGLE_ALLOWED_DOMAIN` | yes | Email domain allowed to use the search UI |
+| `GOOGLE_ALLOWED_EMAILS` | yes | Comma-separated email addresses allowed to use the search UI |
 | `PAPRA_BASE_URL` | no | Base URL used to construct Papra document links |
 | `RUST_LOG` | no | Log filter; default to `info` |
 | `WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` | no | Accepted timestamp age; default to 300 |
@@ -175,7 +175,8 @@ Require an `Authorization` header using the `Bearer` scheme and a Google OIDC to
 issuer, audience, expiration, and (when configured) email/domain or organization claims.
 The first version searches only `PAPRA_ORGANIZATION_ID`; never trust an organization ID
 supplied by the browser. Require the authenticated email to belong to
-`GOOGLE_ALLOWED_DOMAIN` (or use an equivalent explicit allowlist).
+the case-insensitive `GOOGLE_ALLOWED_EMAILS` allowlist. A valid OIDC token for any other
+email must be rejected with `401`.
 
 Validation:
 

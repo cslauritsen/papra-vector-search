@@ -204,7 +204,7 @@ pub async fn papra_webhook(
         if let Err(e) = enrich_document_from_papra(&state, &mut input).await {
             tracing::warn!(
                 document_id = %input.papra_document_id,
-                error = %e,
+                error = ?e,
                 "failed to fetch document from Papra API"
             );
         }

@@ -185,46 +185,36 @@ pub async fn papra_webhook(
     
     tracing::trace!(payload = %serde_json::to_string(&payload).unwrap_or_default(), "webhook payload parsed");
     
-    let (_, mut input) = webhook::map_event(
-        &payload,
-        &state.config.papra_organization_id,
-        state.config.papra_base_url.as_deref(),
-        Utc::now().to_rfc3339(),
-    )
-    .map_err(|e| {
-        tracing::error!(error = %e, "failed to map webhook event");
-        ApiError::bad_request(e.to_string())
-    })?;
+    let org_id = &state.config.papra_organization_id;
     
-    if input.title.is_none() || input.content.is_none() {
-        tracing::debug!(
-            document_id = %input.papra_document_id,
-            "document is missing title or content, fetching from Papra API"
-        );
-        if let Err(e) = enrich_document_from_papra(&state, &mut input).await {
-            tracing::warn!(
-                document_id = %input.papra_document_id,
-                error = ?e,
-                "failed to fetch document from Papra API"
-            );
-        }
-    }
+    let document = extract_and_fetch_document(&state, &payload, org_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to extract/fetch document");
+            ApiError::bad_request(e.to_string())
+        })?;
+    
+    tracing::debug!(
+        document_id = %document.papra_document_id,
+        has_title = document.title.is_some(),
+        has_content = document.content.is_some(),
+        "document ready for indexing"
+    );
     
     let canonical = {
         let storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
-        let mut input_for_resolution = input.clone();
+        let mut input_for_resolution = document.clone();
         storage
             .resolve_input(&mut input_for_resolution)
             .map_err(|e| ApiError::bad_request(e.to_string()))?;
-        input = input_for_resolution;
         let should_embed = storage
-            .needs_embedding(&input)
+            .needs_embedding(&input_for_resolution)
             .map_err(ApiError::internal)?;
         (
             should_embed,
             embeddings::canonical_embedding_input(
-                input.title.as_deref().unwrap_or(""),
-                input.content.as_deref().unwrap_or(""),
+                input_for_resolution.title.as_deref().unwrap_or(""),
+                input_for_resolution.content.as_deref().unwrap_or(""),
             ),
         )
     };
@@ -239,45 +229,77 @@ pub async fn papra_webhook(
     };
     let mut storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
     storage
-        .upsert(&input, vector.as_deref())
+        .upsert(&document, vector.as_deref())
         .map_err(ApiError::internal)?;
     Ok((StatusCode::OK, Json(json!({"status": "processed"}))))
 }
 
-async fn enrich_document_from_papra(
+async fn extract_and_fetch_document(
     state: &AppState,
-    input: &mut storage::DocumentUpsert,
-) -> Result<(), ApiError> {
-    let document = crate::papra_api::fetch_document(
-        state,
-        &input.organization_id,
-        &input.papra_document_id,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!(
-            document_id = %input.papra_document_id,
-            error = %e,
-            "Papra API fetch failed"
-        );
-        ApiError::internal(e)
-    })?;
-    
-    if input.title.is_none() {
-        input.title = document.name;
+    payload: &Value,
+    expected_org: &str,
+) -> anyhow::Result<storage::DocumentUpsert> {
+    let data = payload
+        .get("data")
+        .ok_or_else(|| anyhow::anyhow!("missing data field in webhook payload"))?;
+
+    let doc_id = data
+        .get("documentId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing documentId in webhook payload"))?;
+
+    let org_id = data
+        .get("organizationId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing organizationId in webhook payload"))?;
+
+    if org_id != expected_org {
+        return Err(anyhow::anyhow!(
+            "webhook organization {} does not match configured organization {}",
+            org_id,
+            expected_org
+        ));
     }
-    if input.content.is_none() {
-        input.content = document.text;
-    }
-    
+
     tracing::debug!(
-        document_id = %input.papra_document_id,
-        has_title = input.title.is_some(),
-        has_content = input.content.is_some(),
-        "document enriched from Papra API"
+        document_id = %doc_id,
+        organization_id = %org_id,
+        "fetching document from Papra API"
     );
-    
-    Ok(())
+
+    let papra_doc = crate::papra_api::fetch_document(state, org_id, doc_id)
+        .await?;
+
+    tracing::trace!(
+        document_id = %doc_id,
+        papra_name = ?papra_doc.name,
+        papra_text_len = ?papra_doc.text.as_ref().map(|t| t.len()),
+        "fetched document from Papra API"
+    );
+
+    let hash = papra_doc
+        .text
+        .as_deref()
+        .map(embeddings::content_hash)
+        .unwrap_or_else(|| String::new());
+
+    let title_for_hash = papra_doc.name.as_deref().unwrap_or("");
+    let content_for_hash = papra_doc.text.as_deref().unwrap_or("");
+    let input_hash = embeddings::embedding_input_hash(title_for_hash, content_for_hash);
+
+    Ok(storage::DocumentUpsert {
+        organization_id: org_id.to_string(),
+        papra_document_id: doc_id.to_string(),
+        title: papra_doc.name,
+        content: papra_doc.text,
+        content_hash: hash,
+        embedding_input_hash: input_hash,
+        tags: None,
+        attributes: None,
+        source_url: None,
+        embedding_model: embeddings::MODEL_NAME.to_string(),
+        updated_at: Utc::now().to_rfc3339(),
+    })
 }
 
 #[derive(Debug, Deserialize)]

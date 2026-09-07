@@ -40,6 +40,7 @@ base64 = "0.22"
 chrono = { version = "0.4", features = ["clock", "serde"] }
 dotenvy = "0.15"
 fastembed = "6"
+hex = "0.4"
 hmac = "0.12"
 http = "1"
 jsonwebtoken = "9"

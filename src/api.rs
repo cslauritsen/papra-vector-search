@@ -139,6 +139,11 @@ pub async fn papra_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<impl IntoResponse, ApiError> {
+    tracing::trace!(
+        "webhook request received: headers={:?}",
+        headers
+    );
+    
     let id = header(&headers, "webhook-id")?;
     let timestamp = header(&headers, "webhook-timestamp")?;
     let signature = headers
@@ -146,6 +151,15 @@ pub async fn papra_webhook(
         .and_then(|v| v.to_str().ok())
         .or_else(|| headers.get("x-signature").and_then(|v| v.to_str().ok()))
         .ok_or_else(|| ApiError::unauthorized("missing webhook signature"))?;
+    
+    tracing::trace!(
+        webhook_id = %id,
+        webhook_timestamp = %timestamp,
+        webhook_signature = %signature,
+        body_bytes = body.len(),
+        "webhook signature validation started"
+    );
+    
     webhook::verify_signature(
         state.config.papra_webhook_secret.expose_secret().as_bytes(),
         &id,
@@ -155,16 +169,32 @@ pub async fn papra_webhook(
         state.config.webhook_timestamp_tolerance_seconds,
         webhook::current_unix_time(),
     )
-    .map_err(|e| ApiError::unauthorized(e.to_string()))?;
-    let payload: Value =
-        serde_json::from_slice(&body).map_err(|_| ApiError::bad_request("invalid JSON payload"))?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "webhook signature verification failed");
+        ApiError::unauthorized(e.to_string())
+    })?;
+    
+    tracing::trace!("webhook signature verified successfully");
+    
+    let payload: Value = serde_json::from_slice(&body)
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to parse webhook JSON payload");
+            tracing::trace!(body_str = %String::from_utf8_lossy(&body), "raw body content");
+            ApiError::bad_request("invalid JSON payload")
+        })?;
+    
+    tracing::trace!(payload = %serde_json::to_string(&payload).unwrap_or_default(), "webhook payload parsed");
+    
     let (_, mut input) = webhook::map_event(
         &payload,
         &state.config.papra_organization_id,
         state.config.papra_base_url.as_deref(),
         Utc::now().to_rfc3339(),
     )
-    .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to map webhook event");
+        ApiError::bad_request(e.to_string())
+    })?;
     let canonical = {
         let storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
         let mut input_for_resolution = input.clone();

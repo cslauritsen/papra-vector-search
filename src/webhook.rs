@@ -145,6 +145,8 @@ pub fn map_event(
         && event_type != "document.updated"
         && event_type != "document_created"
         && event_type != "document_updated"
+        && event_type != "document:created"
+        && event_type != "document:updated"
     {
         tracing::error!(event_type = %event_type, "unsupported event type");
         return Err(anyhow!("unsupported event type"));

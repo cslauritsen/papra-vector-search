@@ -9,6 +9,8 @@ pub mod config;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod embeddings;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod papra_api;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod storage;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod telemetry;
@@ -36,6 +38,7 @@ pub struct AppState {
     pub embeddings: Arc<Mutex<TextEmbedding>>,
     pub auth: Arc<Authenticator>,
     pub metrics: telemetry::Metrics,
+    pub http: reqwest::Client,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

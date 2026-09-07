@@ -2,6 +2,7 @@ use std::{collections::HashSet, env, fmt, path::PathBuf};
 
 use anyhow::{Result, anyhow};
 use secrecy::{ExposeSecret, SecretString};
+use url::Url;
 
 #[derive(Clone)]
 pub struct Config {
@@ -9,6 +10,8 @@ pub struct Config {
     pub sqlite_vec_extension_path: PathBuf,
     pub papra_webhook_secret: SecretString,
     pub papra_organization_id: String,
+    pub papra_api_base: Url,
+    pub papra_api_key: SecretString,
     pub google_client_id: SecretString,
     pub google_client_secret: SecretString,
     pub google_redirect_uri: String,
@@ -28,6 +31,8 @@ impl fmt::Debug for Config {
             .field("sqlite_vec_extension_path", &self.sqlite_vec_extension_path)
             .field("papra_webhook_secret", &"[REDACTED]")
             .field("papra_organization_id", &self.papra_organization_id)
+            .field("papra_api_base", &self.papra_api_base)
+            .field("papra_api_key", &"[REDACTED]")
             .field("google_client_id", &"[REDACTED]")
             .field("google_client_secret", &"[REDACTED]")
             .field("google_redirect_uri", &self.google_redirect_uri)
@@ -88,11 +93,23 @@ impl Config {
                 "GOOGLE_ALLOWED_EMAILS must contain at least one email"
             ));
         }
+        let mut papra_api_base = Url::parse(
+            &env::var("PAPRA_API_BASE")
+                .unwrap_or_else(|_| "https://api.papra.app".to_string()),
+        )
+        .map_err(|e| anyhow!("PAPRA_API_BASE is not a valid URL: {e}"))?;
+        if papra_api_base.path() == "/" || papra_api_base.path().is_empty() {
+            papra_api_base.set_path("/api/");
+        } else if !papra_api_base.path().ends_with('/') {
+            papra_api_base.set_path(&format!("{}/", papra_api_base.path()));
+        }
         Ok(Self {
             database_url: required("DATABASE_URL")?,
             sqlite_vec_extension_path: PathBuf::from(required("SQLITE_VEC_EXTENSION_PATH")?),
             papra_webhook_secret: SecretString::from(required("PAPRA_WEBHOOK_SECRET")?),
             papra_organization_id: required("PAPRA_ORGANIZATION_ID")?,
+            papra_api_base,
+            papra_api_key: SecretString::from(required("PAPRA_API_KEY")?),
             google_client_id: SecretString::from(required("GOOGLE_CLIENT_ID")?),
             google_client_secret: SecretString::from(required("GOOGLE_CLIENT_SECRET")?),
             google_redirect_uri: required("GOOGLE_REDIRECT_URI")?,

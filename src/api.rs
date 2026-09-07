@@ -195,6 +195,21 @@ pub async fn papra_webhook(
         tracing::error!(error = %e, "failed to map webhook event");
         ApiError::bad_request(e.to_string())
     })?;
+    
+    if input.title.is_none() || input.content.is_none() {
+        tracing::debug!(
+            document_id = %input.papra_document_id,
+            "document is missing title or content, fetching from Papra API"
+        );
+        if let Err(e) = enrich_document_from_papra(&state, &mut input).await {
+            tracing::warn!(
+                document_id = %input.papra_document_id,
+                error = %e,
+                "failed to fetch document from Papra API"
+            );
+        }
+    }
+    
     let canonical = {
         let storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
         let mut input_for_resolution = input.clone();
@@ -227,6 +242,42 @@ pub async fn papra_webhook(
         .upsert(&input, vector.as_deref())
         .map_err(ApiError::internal)?;
     Ok((StatusCode::OK, Json(json!({"status": "processed"}))))
+}
+
+async fn enrich_document_from_papra(
+    state: &AppState,
+    input: &mut storage::DocumentUpsert,
+) -> Result<(), ApiError> {
+    let document = crate::papra_api::fetch_document(
+        state,
+        &input.organization_id,
+        &input.papra_document_id,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(
+            document_id = %input.papra_document_id,
+            error = %e,
+            "Papra API fetch failed"
+        );
+        ApiError::internal(e)
+    })?;
+    
+    if input.title.is_none() {
+        input.title = document.name;
+    }
+    if input.content.is_none() {
+        input.content = document.text;
+    }
+    
+    tracing::debug!(
+        document_id = %input.papra_document_id,
+        has_title = input.title.is_some(),
+        has_content = input.content.is_some(),
+        "document enriched from Papra API"
+    );
+    
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]

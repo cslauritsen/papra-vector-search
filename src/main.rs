@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
         storage: Arc::new(Mutex::new(storage)),
         embeddings: Arc::new(Mutex::new(model)),
         metrics,
+        http: reqwest::Client::new(),
     };
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     tracing::info!(address = %listener.local_addr()?, "server ready");

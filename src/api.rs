@@ -319,6 +319,7 @@ pub struct SearchResult {
     pub papra_document_id: String,
     pub title: String,
     pub source_url: Option<String>,
+    pub papra_base_url: Option<String>,
     pub score: f32,
 }
 
@@ -378,6 +379,7 @@ pub async fn search(
                 papra_document_id: r.papra_document_id,
                 title: r.title,
                 source_url: r.source_url,
+                papra_base_url: state.config.papra_base_url.clone(),
                 score: r.score,
             })
             .collect(),

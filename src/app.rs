@@ -7,7 +7,22 @@ pub struct SearchResult {
     pub papra_document_id: String,
     pub title: String,
     pub source_url: Option<String>,
+    pub papra_base_url: Option<String>,
     pub score: f32,
+}
+
+fn papra_document_url(
+    papra_base_url: Option<&str>,
+    organization_id: &str,
+    papra_document_id: &str,
+) -> String {
+    let base = papra_base_url
+        .unwrap_or("https://papra.planetlauritsen.com")
+        .trim_end_matches('/');
+    format!(
+        "{}/organizations/{}/documents/{}?tab=info",
+        base, organization_id, papra_document_id
+    )
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -302,7 +317,7 @@ pub fn App() -> impl IntoView {
                                 </div>
                                 <div class="result-meta">
                                     <span class="score">{format!("{:.0}% match", (1.0 - result.score).max(0.0) * 100.0)}</span>
-                                    {result.source_url.clone().map(|url| view! { <a class="source-link" href=url target="_blank" rel="noreferrer">"Open in Papra ↗"</a> })}
+                                    <a class="source-link" href=papra_document_url(result.papra_base_url.as_deref(), &result.organization_id, &result.papra_document_id) target="_blank" rel="noreferrer">"Open in Papra ↗"</a>
                                 </div>
                             </article>
                         </For>

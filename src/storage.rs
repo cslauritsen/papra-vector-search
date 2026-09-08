@@ -1,6 +1,7 @@
 use std::{
     path::Path,
     sync::{Mutex, MutexGuard},
+    time::Duration,
 };
 
 use anyhow::{Context, Result, anyhow};
@@ -31,6 +32,13 @@ pub struct SearchResult {
     pub title: String,
     pub source_url: Option<String>,
     pub score: f32,
+}
+
+#[derive(Clone, Debug)]
+pub struct EmbeddingJob {
+    pub document_id: String,
+    pub received_at: String,
+    pub attempts: i64,
 }
 
 pub struct Storage {
@@ -86,6 +94,13 @@ impl Storage {
             CREATE TABLE IF NOT EXISTS vec_documents (
                 document_id INTEGER PRIMARY KEY,
                 embedding BLOB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS embedding_jobs (
+                document_id TEXT PRIMARY KEY,
+                received_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
             );",
         )?;
         Ok(storage)
@@ -115,6 +130,13 @@ impl Storage {
                 content_updated_at TEXT NOT NULL,
                 embedding_updated_at TEXT NOT NULL,
                 UNIQUE(organization_id, papra_document_id)
+            );
+            CREATE TABLE IF NOT EXISTS embedding_jobs (
+                document_id TEXT PRIMARY KEY,
+                received_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
             );",
         )?;
         let previous: Option<String> = tx
@@ -365,6 +387,97 @@ impl Storage {
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
+
+    pub fn enqueue_embedding(&mut self, document_id: &str, received_at: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO embedding_jobs(document_id,received_at,status,attempts,last_error)
+             VALUES(?,?,'pending',0,NULL)
+             ON CONFLICT(document_id) DO UPDATE SET
+                 received_at=excluded.received_at,
+                 status=CASE WHEN embedding_jobs.status='running' THEN 'running' ELSE 'pending' END,
+                 attempts=CASE WHEN embedding_jobs.status='running' THEN embedding_jobs.attempts ELSE 0 END,
+                 last_error=NULL",
+            params![document_id, received_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn claim_embedding_job(&mut self, before: &str) -> Result<Option<EmbeddingJob>> {
+        let tx = self.conn.transaction()?;
+        let job = tx
+            .query_row(
+                "SELECT document_id,received_at,attempts
+                 FROM embedding_jobs
+                 WHERE status='pending' AND received_at <= ?
+                 ORDER BY received_at ASC
+                 LIMIT 1",
+                [before],
+                |row| {
+                    Ok(EmbeddingJob {
+                        document_id: row.get(0)?,
+                        received_at: row.get(1)?,
+                        attempts: row.get(2)?,
+                    })
+                },
+            )
+            .optional()?;
+        if let Some(job) = &job {
+            tx.execute(
+                "UPDATE embedding_jobs SET status='running' WHERE document_id=? AND status='pending'",
+                [&job.document_id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(job)
+    }
+
+    pub fn finish_embedding_job(&mut self, job: &EmbeddingJob) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM embedding_jobs
+             WHERE document_id=? AND status='running' AND received_at=?",
+            params![job.document_id, job.received_at],
+        )?;
+        self.conn.execute(
+            "UPDATE embedding_jobs SET status='pending',attempts=0,last_error=NULL
+             WHERE document_id=? AND status='running'",
+            [&job.document_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn fail_embedding_job(
+        &mut self,
+        job: &EmbeddingJob,
+        error: &str,
+        retry_delay: Duration,
+    ) -> Result<()> {
+        let retry_at = chrono::Utc::now()
+            .checked_add_signed(
+                chrono::Duration::from_std(retry_delay)
+                    .map_err(|e| anyhow!("invalid retry delay: {e}"))?,
+            )
+            .ok_or_else(|| anyhow!("retry timestamp overflow"))?
+            .to_rfc3339();
+        self.conn.execute(
+            "UPDATE embedding_jobs
+             SET status=CASE WHEN received_at != ? THEN 'pending'
+                             WHEN attempts < 1 THEN 'pending'
+                             ELSE 'failed' END,
+                 received_at=CASE WHEN received_at != ? OR attempts < 1 THEN ? ELSE received_at END,
+                 attempts=CASE WHEN received_at != ? THEN 0 ELSE attempts + 1 END,
+                 last_error=?
+             WHERE document_id=? AND status='running'",
+            params![
+                job.received_at,
+                job.received_at,
+                retry_at,
+                job.received_at,
+                error,
+                job.document_id
+            ],
+        )?;
+        Ok(())
+    }
 }
 
 pub fn lock(storage: &Mutex<Storage>) -> Result<MutexGuard<'_, Storage>> {
@@ -408,5 +521,31 @@ mod tests {
         assert_eq!(row.0, "two");
         assert_eq!(row.1, "h1");
         assert_eq!(row.2, r#"["new"]"#);
+    }
+
+    #[test]
+    fn embedding_jobs_debounce_and_requeue_updates_during_processing() {
+        let mut storage = Storage::open_without_extension(":memory:").unwrap();
+        storage
+            .enqueue_embedding("doc", "2026-01-01T00:00:00Z")
+            .unwrap();
+        let job = storage
+            .claim_embedding_job("2026-01-01T00:01:00Z")
+            .unwrap()
+            .unwrap();
+        storage
+            .enqueue_embedding("doc", "2026-01-01T00:02:00Z")
+            .unwrap();
+        storage.finish_embedding_job(&job).unwrap();
+
+        let row: (String, String) = storage
+            .connection()
+            .query_row(
+                "SELECT status,received_at FROM embedding_jobs WHERE document_id='doc'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row, ("pending".into(), "2026-01-01T00:02:00Z".into()));
     }
 }

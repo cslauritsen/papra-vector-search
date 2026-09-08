@@ -139,11 +139,8 @@ pub async fn papra_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<impl IntoResponse, ApiError> {
-    tracing::trace!(
-        "webhook request received: headers={:?}",
-        headers
-    );
-    
+    tracing::trace!("webhook request received: headers={:?}", headers);
+
     let id = header(&headers, "webhook-id")?;
     let timestamp = header(&headers, "webhook-timestamp")?;
     let signature = headers
@@ -151,7 +148,7 @@ pub async fn papra_webhook(
         .and_then(|v| v.to_str().ok())
         .or_else(|| headers.get("x-signature").and_then(|v| v.to_str().ok()))
         .ok_or_else(|| ApiError::unauthorized("missing webhook signature"))?;
-    
+
     tracing::trace!(
         webhook_id = %id,
         webhook_timestamp = %timestamp,
@@ -159,7 +156,7 @@ pub async fn papra_webhook(
         body_bytes = body.len(),
         "webhook signature validation started"
     );
-    
+
     webhook::verify_signature(
         state.config.papra_webhook_secret.expose_secret().as_bytes(),
         &id,
@@ -173,29 +170,65 @@ pub async fn papra_webhook(
         tracing::error!(error = %e, "webhook signature verification failed");
         ApiError::unauthorized(e.to_string())
     })?;
-    
+
     tracing::trace!("webhook signature verified successfully");
-    
-    let payload: Value = serde_json::from_slice(&body)
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to parse webhook JSON payload");
-            tracing::trace!(body_str = %String::from_utf8_lossy(&body), "raw body content");
-            ApiError::bad_request("invalid JSON payload")
-        })?;
-    
+
+    let payload: Value = serde_json::from_slice(&body).map_err(|e| {
+        tracing::error!(error = %e, "failed to parse webhook JSON payload");
+        tracing::trace!(body_str = %String::from_utf8_lossy(&body), "raw body content");
+        ApiError::bad_request("invalid JSON payload")
+    })?;
+
     tracing::trace!(payload = %serde_json::to_string(&payload).unwrap_or_default(), "webhook payload parsed");
-    
+
     validate_webhook_payload(&payload, &state.config.papra_organization_id)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
-    let worker_state = state.clone();
-    tokio::spawn(async move {
-        if let Err(error) = process_webhook_document(worker_state, payload).await {
-            tracing::error!(error = %error, "webhook async processing failed");
-        }
-    });
+    let document_id = payload["data"]["documentId"]
+        .as_str()
+        .ok_or_else(|| ApiError::bad_request("missing documentId in webhook payload"))?;
+    storage::lock(&state.storage)
+        .map_err(ApiError::internal)?
+        .enqueue_embedding(document_id, &Utc::now().to_rfc3339())
+        .map_err(ApiError::internal)?;
 
     Ok((StatusCode::ACCEPTED, Json(json!({"status": "accepted"}))))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchEmbeddingRequest {
+    pub document_ids: Vec<String>,
+}
+
+pub async fn enqueue_batch(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<BatchEmbeddingRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    if state.config.auth_enabled {
+        state
+            .auth
+            .authenticate(headers.get("authorization").and_then(|v| v.to_str().ok()))
+            .await
+            .map_err(|_| ApiError::unauthorized("authentication failed"))?;
+    }
+    if request.document_ids.is_empty() || request.document_ids.iter().any(|id| id.trim().is_empty())
+    {
+        return Err(ApiError::bad_request(
+            "document_ids must contain at least one non-empty ID",
+        ));
+    }
+    let received_at = Utc::now().to_rfc3339();
+    let mut storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
+    for document_id in &request.document_ids {
+        storage
+            .enqueue_embedding(document_id, &received_at)
+            .map_err(ApiError::internal)?;
+    }
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({"status": "accepted", "count": request.document_ids.len()})),
+    ))
 }
 
 fn validate_webhook_payload(payload: &Value, expected_org: &str) -> anyhow::Result<()> {
@@ -219,6 +252,53 @@ fn validate_webhook_payload(payload: &Value, expected_org: &str) -> anyhow::Resu
     }
     tracing::debug!(document_id = %doc_id, organization_id = %org_id, "webhook payload validated");
     Ok(())
+}
+
+pub async fn embedding_worker(state: AppState) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+    loop {
+        interval.tick().await;
+        let cutoff = (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339();
+        let job = match storage::lock(&state.storage)
+            .and_then(|mut storage| storage.claim_embedding_job(&cutoff))
+        {
+            Ok(job) => job,
+            Err(error) => {
+                tracing::error!(error = %error, "failed to claim embedding job");
+                continue;
+            }
+        };
+        let Some(job) = job else {
+            continue;
+        };
+        let payload = json!({
+            "data": {
+                "documentId": job.document_id,
+                "organizationId": state.config.papra_organization_id
+            }
+        });
+        match process_webhook_document(state.clone(), payload).await {
+            Ok(()) => {
+                if let Err(error) = storage::lock(&state.storage)
+                    .and_then(|mut storage| storage.finish_embedding_job(&job))
+                {
+                    tracing::error!(error = %error, document_id = %job.document_id, "failed to finish embedding job");
+                }
+            }
+            Err(error) => {
+                tracing::error!(error = %error, document_id = %job.document_id, "embedding job failed");
+                if let Err(storage_error) = storage::lock(&state.storage).and_then(|mut storage| {
+                    storage.fail_embedding_job(
+                        &job,
+                        &error.to_string(),
+                        std::time::Duration::from_secs(60),
+                    )
+                }) {
+                    tracing::error!(error = %storage_error, document_id = %job.document_id, "failed to update embedding job failure");
+                }
+            }
+        }
+    }
 }
 
 async fn process_webhook_document(state: AppState, payload: Value) -> anyhow::Result<()> {
@@ -290,8 +370,7 @@ async fn extract_and_fetch_document(
         "fetching document from Papra API"
     );
 
-    let papra_doc = crate::papra_api::fetch_document(state, org_id, doc_id)
-        .await?;
+    let papra_doc = crate::papra_api::fetch_document(state, org_id, doc_id).await?;
 
     tracing::trace!(
         document_id = %doc_id,
@@ -456,6 +535,7 @@ pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response 
     let route = match req.uri().path() {
         "/health" => "/health",
         "/api/search" => "/api/search",
+        "/api/embeddings/batch" => "/api/embeddings/batch",
         "/webhook/papra" => "/webhook/papra",
         _ => "/",
     };
@@ -477,6 +557,7 @@ pub fn route_name(method: &str, path: &str) -> &'static str {
     match path {
         "/health" => "/health",
         "/api/search" => "/api/search",
+        "/api/embeddings/batch" => "/api/embeddings/batch",
         "/webhook/papra" => "/webhook/papra",
         _ => "/",
     }

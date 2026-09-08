@@ -36,6 +36,13 @@ async fn main() -> Result<()> {
         metrics,
         http: reqwest::Client::new(),
     };
+    let worker_handle = tokio::runtime::Handle::current();
+    let worker_state = state.clone();
+    std::thread::Builder::new()
+        .name("embedding-worker".into())
+        .spawn(move || {
+            worker_handle.block_on(papra_vector_search::api::embedding_worker(worker_state))
+        })?;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     tracing::info!(address = %listener.local_addr()?, "server ready");
     axum::serve(listener, papra_vector_search::router(state)).await?;

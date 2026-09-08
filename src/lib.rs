@@ -49,6 +49,10 @@ pub fn router(state: AppState) -> Router {
         .route("/oidc/callback", get(api::oidc_callback))
         .route("/webhook/papra", axum::routing::post(api::papra_webhook))
         .route("/api/search", get(api::search))
+        .route(
+            "/api/embeddings/batch",
+            axum::routing::post(api::enqueue_batch),
+        )
         .layer(Extension(state.metrics.clone()))
         .layer(middleware::from_fn(api::access_log))
         .fallback_service(

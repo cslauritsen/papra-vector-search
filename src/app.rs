@@ -292,16 +292,12 @@ pub fn App() -> impl IntoView {
                         <For each=move || results.get() key=|result| result.papra_document_id.clone() let:result>
                             <article class="result-card">
                                 <div class="result-thumb" aria-hidden="true">
-                                    {move || result.title.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "DOC".to_owned())}
+                                    {result.title.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "DOC".to_owned())}
                                 </div>
                                 <div class="result-copy">
                                     <p class="result-org">{result.organization_id.clone()}</p>
                                     <h3>
-                                        {move || result.source_url.clone().map(|url| view! {
-                                            <a class="result-title-link" href=url target="_blank" rel="noreferrer">{result.title.clone()}</a>
-                                        }).unwrap_or_else(|| view! {
-                                            <span class="result-title-text">{result.title.clone()}</span>
-                                        })}
+                                        <span class="result-title-text">{result.title.clone()}</span>
                                     </h3>
                                     <p class="result-id">{result.papra_document_id.clone()}</p>
                                     <p class="result-snippet">"Open the document in Papra to see the full content."</p>

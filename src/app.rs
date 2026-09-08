@@ -291,10 +291,22 @@ pub fn App() -> impl IntoView {
                         <div class="results-heading"><h2>"Search results"</h2><span>{move || format!("{} found", results.get().len())}</span></div>
                         <For each=move || results.get() key=|result| result.papra_document_id.clone() let:result>
                             <article class="result-card">
+                                <div class="result-thumb" aria-hidden="true">
+                                    {move || result.title.chars().next().map(|c| c.to_string()).unwrap_or_else(|| "DOC".to_owned())}
+                                </div>
                                 <div class="result-copy">
                                     <p class="result-org">{result.organization_id.clone()}</p>
-                                    <h3>{result.title.clone()}</h3>
+                                    <h3>
+                                        {move || {
+                                            if let Some(url) = result.source_url.clone() {
+                                                view! { <a class="result-title-link" href=url target="_blank" rel="noreferrer">{result.title.clone()}</a> }
+                                            } else {
+                                                view! { <span>{result.title.clone()}</span> }
+                                            }
+                                        }}
+                                    </h3>
                                     <p class="result-id">{result.papra_document_id.clone()}</p>
+                                    <p class="result-snippet">"Open the document in Papra to see the full content."</p>
                                 </div>
                                 <div class="result-meta">
                                     <span class="score">{format!("{:.0}% match", (1.0 - result.score).max(0.0) * 100.0)}</span>
@@ -345,14 +357,20 @@ input { width: 100%; min-width: 0; padding: .9rem 1rem; border: 1px solid #bdcbc
 .results { margin-top: 3rem; }
 .results-heading { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; }
 .results-heading span, .result-id { color: #78877f; font-size: .85rem; }
-.result-card { display: flex; justify-content: space-between; gap: 1.5rem; margin-top: .8rem; padding: 1.3rem 1.4rem; border: 1px solid #dce5df; border-radius: 1rem; background: white; }
+.result-card { display: flex; gap: 1.1rem; margin-top: .8rem; padding: 1.3rem 1.4rem; border: 1px solid #dce5df; border-radius: 1rem; background: white; align-items: flex-start; }
+.result-thumb { flex: 0 0 4.25rem; height: 5.2rem; border-radius: .85rem; display: grid; place-items: center; color: #176b4d; background: #eaf3ee; border: 1px solid #dce5df; font-weight: 800; letter-spacing: .08em; }
+.result-thumb-link { text-decoration: none; font-size: 1.05rem; }
+.result-copy { min-width: 0; flex: 1; }
 .result-card h3 { margin: 0; font-size: 1.1rem; }
+.result-title-link { color: inherit; text-decoration: none; }
+.result-title-link:hover { text-decoration: underline; }
 .result-org { margin-bottom: .4rem; font-size: .65rem; }
 .result-id { margin: .45rem 0 0; }
+.result-snippet { margin: .7rem 0 0; color: #52625c; line-height: 1.5; font-size: .92rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .result-meta { display: flex; flex-direction: column; gap: .65rem; align-items: flex-end; white-space: nowrap; }
 .score { color: #176b4d; font-size: .82rem; font-weight: 800; }
 .source-link { color: #176b4d; font-size: .85rem; font-weight: 700; text-decoration: none; }
 .empty { margin-top: 2rem; text-align: center; }
 footer { padding: 2rem; color: #8b9891; text-align: center; font-size: .8rem; }
-@media (max-width: 600px) { .topbar { padding: 1rem; } .shell { padding: 3rem 1rem 5rem; } .search-row, .result-card { flex-direction: column; } .search-row .button { width: 100%; } .result-meta { flex-direction: row; align-items: center; justify-content: space-between; } }
+@media (max-width: 600px) { .topbar { padding: 1rem; } .shell { padding: 3rem 1rem 5rem; } .search-row, .result-card { flex-direction: column; } .search-row .button { width: 100%; } .result-thumb { width: 100%; height: 3.5rem; } .result-meta { flex-direction: row; align-items: center; justify-content: space-between; } }
 "#;

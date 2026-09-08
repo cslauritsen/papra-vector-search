@@ -185,31 +185,56 @@ pub async fn papra_webhook(
     
     tracing::trace!(payload = %serde_json::to_string(&payload).unwrap_or_default(), "webhook payload parsed");
     
+    validate_webhook_payload(&payload, &state.config.papra_organization_id)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+
+    let worker_state = state.clone();
+    tokio::spawn(async move {
+        if let Err(error) = process_webhook_document(worker_state, payload).await {
+            tracing::error!(error = %error, "webhook async processing failed");
+        }
+    });
+
+    Ok((StatusCode::ACCEPTED, Json(json!({"status": "accepted"}))))
+}
+
+fn validate_webhook_payload(payload: &Value, expected_org: &str) -> anyhow::Result<()> {
+    let data = payload
+        .get("data")
+        .ok_or_else(|| anyhow::anyhow!("missing data field in webhook payload"))?;
+    let doc_id = data
+        .get("documentId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing documentId in webhook payload"))?;
+    let org_id = data
+        .get("organizationId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing organizationId in webhook payload"))?;
+    if org_id != expected_org {
+        return Err(anyhow::anyhow!(
+            "webhook organization {} does not match configured organization {}",
+            org_id,
+            expected_org
+        ));
+    }
+    tracing::debug!(document_id = %doc_id, organization_id = %org_id, "webhook payload validated");
+    Ok(())
+}
+
+async fn process_webhook_document(state: AppState, payload: Value) -> anyhow::Result<()> {
     let org_id = &state.config.papra_organization_id;
-    
-    let document = extract_and_fetch_document(&state, &payload, org_id)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to extract/fetch document");
-            ApiError::bad_request(e.to_string())
-        })?;
-    
+    let document = extract_and_fetch_document(&state, &payload, org_id).await?;
     tracing::debug!(
         document_id = %document.papra_document_id,
         has_title = document.title.is_some(),
         has_content = document.content.is_some(),
         "document ready for indexing"
     );
-    
     let canonical = {
-        let storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
+        let storage = storage::lock(&state.storage)?;
         let mut input_for_resolution = document.clone();
-        storage
-            .resolve_input(&mut input_for_resolution)
-            .map_err(|e| ApiError::bad_request(e.to_string()))?;
-        let should_embed = storage
-            .needs_embedding(&input_for_resolution)
-            .map_err(ApiError::internal)?;
+        storage.resolve_input(&mut input_for_resolution)?;
+        let should_embed = storage.needs_embedding(&input_for_resolution)?;
         (
             should_embed,
             embeddings::canonical_embedding_input(
@@ -222,16 +247,14 @@ pub async fn papra_webhook(
         let mut model = state
             .embeddings
             .lock()
-            .map_err(|_| ApiError::internal(anyhow::anyhow!("embedding lock poisoned")))?;
-        Some(embeddings::embed(&mut model, &canonical.1).map_err(ApiError::internal)?)
+            .map_err(|_| anyhow::anyhow!("embedding lock poisoned"))?;
+        Some(embeddings::embed(&mut model, &canonical.1)?)
     } else {
         None
     };
-    let mut storage = storage::lock(&state.storage).map_err(ApiError::internal)?;
-    storage
-        .upsert(&document, vector.as_deref())
-        .map_err(ApiError::internal)?;
-    Ok((StatusCode::OK, Json(json!({"status": "processed"}))))
+    let mut storage = storage::lock(&state.storage)?;
+    storage.upsert(&document, vector.as_deref())?;
+    Ok(())
 }
 
 async fn extract_and_fetch_document(

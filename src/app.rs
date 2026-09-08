@@ -297,13 +297,11 @@ pub fn App() -> impl IntoView {
                                 <div class="result-copy">
                                     <p class="result-org">{result.organization_id.clone()}</p>
                                     <h3>
-                                        {move || {
-                                            if let Some(url) = result.source_url.clone() {
-                                                view! { <a class="result-title-link" href=url target="_blank" rel="noreferrer">{result.title.clone()}</a> }
-                                            } else {
-                                                view! { <span>{result.title.clone()}</span> }
-                                            }
-                                        }}
+                                        {move || result.source_url.clone().map(|url| view! {
+                                            <a class="result-title-link" href=url target="_blank" rel="noreferrer">{result.title.clone()}</a>
+                                        }).unwrap_or_else(|| view! {
+                                            <span class="result-title-text">{result.title.clone()}</span>
+                                        })}
                                     </h3>
                                     <p class="result-id">{result.papra_document_id.clone()}</p>
                                     <p class="result-snippet">"Open the document in Papra to see the full content."</p>

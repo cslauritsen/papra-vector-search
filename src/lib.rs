@@ -42,6 +42,7 @@ pub struct AppState {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+/// Builds the HTTP router and attaches the shared application state.
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(api::health))
@@ -63,6 +64,7 @@ pub fn router(state: AppState) -> Router {
 
 #[cfg(all(target_arch = "wasm32", feature = "csr"))]
 #[wasm_bindgen::prelude::wasm_bindgen]
+/// Mounts the Leptos frontend into the document body.
 pub fn mount() {
     leptos::mount::mount_to_body(|| leptos::view! { <app::App/> });
 }

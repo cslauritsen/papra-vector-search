@@ -37,6 +37,7 @@ pub struct OAuthTokenResponse {
 }
 
 impl Authenticator {
+    /// Builds an authenticator from the application configuration.
     pub fn new(config: &Config) -> Self {
         Self {
             client: Client::new(),
@@ -48,6 +49,7 @@ impl Authenticator {
         }
     }
 
+    /// Builds the Google OAuth authorization URL for a state token.
     pub fn authorization_url(&self, state: &str) -> Result<String> {
         let mut url = Url::parse("https://accounts.google.com/o/oauth2/v2/auth")?;
         url.query_pairs_mut()
@@ -60,6 +62,7 @@ impl Authenticator {
         Ok(url.into())
     }
 
+    /// Exchanges an OAuth authorization code for provider tokens.
     pub async fn exchange_code(&self, code: &str) -> Result<OAuthTokenResponse> {
         self.client
             .post("https://oauth2.googleapis.com/token")
@@ -78,6 +81,7 @@ impl Authenticator {
             .map_err(Into::into)
     }
 
+    /// Validates a bearer token and checks its authorized email address.
     pub async fn authenticate(&self, authorization: Option<&str>) -> Result<Claims> {
         let value = authorization.ok_or_else(|| anyhow!("missing authorization"))?;
         let token = value

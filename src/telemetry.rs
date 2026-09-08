@@ -13,6 +13,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    /// Creates application metrics and registers the process meter provider.
     pub fn new(endpoint: Option<&str>) -> Self {
         if let Some(endpoint) = endpoint {
             tracing::info!(endpoint = %endpoint, "OTLP endpoint configured; using process meter provider");
@@ -26,11 +27,13 @@ impl Metrics {
         }
     }
 
+    /// Records a search attempt grouped by outcome.
     pub fn search(&self, status: &'static str) {
         self.search_count
             .add(1, &[opentelemetry::KeyValue::new("status", status)]);
     }
 
+    /// Records an HTTP request grouped by method, route, and status.
     pub fn request(&self, method: &str, route: &str, status: u16) {
         self.request_count.add(
             1,
@@ -43,6 +46,7 @@ impl Metrics {
     }
 }
 
+/// Initializes tracing output using the configured log format.
 pub fn init_logging() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));

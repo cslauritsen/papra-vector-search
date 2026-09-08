@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::{AppState, embeddings, storage, webhook};
 
+/// Returns service health and authentication status.
 pub async fn health(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "status": "ok",
@@ -29,6 +30,7 @@ pub struct OidcLoginQuery {
     pub format: Option<String>,
 }
 
+/// Starts the OAuth login flow.
 pub async fn oidc_login(
     State(state): State<AppState>,
     Query(query): Query<OidcLoginQuery>,
@@ -67,6 +69,7 @@ pub struct OidcCallbackQuery {
     pub error: Option<String>,
 }
 
+/// Completes the OAuth login flow and returns the token payload.
 pub async fn oidc_callback(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -134,6 +137,7 @@ fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .find_map(|(key, value)| (key == name).then(|| value.to_owned()))
 }
 
+/// Validates and queues a Papra webhook for asynchronous processing.
 pub async fn papra_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -200,6 +204,7 @@ pub struct BatchEmbeddingRequest {
     pub document_ids: Vec<String>,
 }
 
+/// Queues multiple document IDs for authenticated batch embedding.
 pub async fn enqueue_batch(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -254,6 +259,7 @@ fn validate_webhook_payload(payload: &Value, expected_org: &str) -> anyhow::Resu
     Ok(())
 }
 
+/// Polls and processes one eligible embedding job at a time.
 pub async fn embedding_worker(state: AppState) {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
     loop {
@@ -425,6 +431,7 @@ pub struct SearchResult {
     pub score: f32,
 }
 
+/// Executes a vector search query against the configured organization.
 pub async fn search(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -529,6 +536,7 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// Logs HTTP requests and records request metrics.
 pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response {
     let started = Instant::now();
     let method = req.method().to_string();
@@ -552,6 +560,7 @@ pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response 
     response
 }
 
+/// Maps an HTTP method and path to the canonical metrics route name.
 pub fn route_name(method: &str, path: &str) -> &'static str {
     let _ = method;
     match path {

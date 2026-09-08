@@ -18,6 +18,7 @@ use crate::{
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// Verifies a Papra webhook signature and timestamp.
 pub fn verify_signature(
     secret: &[u8],
     webhook_id: &str,
@@ -122,6 +123,7 @@ pub fn verify_signature(
     Ok(())
 }
 
+/// Converts a supported webhook payload into a document upsert.
 pub fn map_event(
     value: &Value,
     expected_org: &str,
@@ -232,6 +234,7 @@ pub fn map_event(
     Ok((event_type.to_string(), input))
 }
 
+/// Returns the current Unix timestamp in seconds.
 pub fn current_unix_time() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

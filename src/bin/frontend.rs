@@ -2,6 +2,7 @@
 
 #[cfg(all(target_arch = "wasm32", feature = "csr"))]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
+/// Mounts the frontend application in a browser.
 pub fn start() {
     papra_vector_search::mount();
 }

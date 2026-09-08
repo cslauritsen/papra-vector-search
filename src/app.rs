@@ -44,6 +44,7 @@ struct HealthResponse {
 }
 
 #[component]
+/// Renders the client-side search application.
 pub fn App() -> impl IntoView {
     let token = RwSignal::new(None::<String>);
     let auth_enabled = RwSignal::new(true);

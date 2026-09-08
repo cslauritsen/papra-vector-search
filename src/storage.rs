@@ -47,6 +47,7 @@ pub struct Storage {
 }
 
 impl Storage {
+    /// Opens the SQLite database, loads sqlite-vec, and applies migrations.
     pub fn open(
         database_url: &str,
         extension_path: &Path,
@@ -69,6 +70,7 @@ impl Storage {
         Ok(storage)
     }
 
+    /// Opens a SQLite database without loading sqlite-vec, for lightweight tests.
     pub fn open_without_extension(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         let storage = Self { conn, dimension: 3 };
@@ -213,6 +215,7 @@ impl Storage {
             .map_err(Into::into)
     }
 
+    /// Reports whether the document needs a newly generated embedding.
     pub fn needs_embedding(&self, input: &DocumentUpsert) -> Result<bool> {
         Ok(self
             .existing(&input.organization_id, &input.papra_document_id)?
@@ -220,6 +223,7 @@ impl Storage {
             .unwrap_or(true))
     }
 
+    /// Fills omitted fields from an existing document and resolves its input hash.
     pub fn resolve_input(&self, input: &mut DocumentUpsert) -> Result<()> {
         if let Some(row) = self.existing(&input.organization_id, &input.papra_document_id)? {
             let title = input.title.clone().unwrap_or(row.1);
@@ -245,6 +249,7 @@ impl Storage {
             .is_err()
     }
 
+    /// Inserts or updates a document and its optional embedding vector.
     pub fn upsert(&mut self, input: &DocumentUpsert, embedding: Option<&[f32]>) -> Result<()> {
         if input.embedding_model != MODEL_NAME {
             return Err(anyhow!("unsupported embedding model"));
@@ -353,6 +358,7 @@ impl Storage {
         Ok(())
     }
 
+    /// Searches the vector index for documents in an organization.
     pub fn search(
         &self,
         organization: &str,
@@ -384,10 +390,12 @@ impl Storage {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// Returns the underlying SQLite connection.
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
 
+    /// Enqueues or refreshes a document's embedding job.
     pub fn enqueue_embedding(&mut self, document_id: &str, received_at: &str) -> Result<()> {
         self.conn.execute(
             "INSERT INTO embedding_jobs(document_id,received_at,status,attempts,last_error)
@@ -402,6 +410,7 @@ impl Storage {
         Ok(())
     }
 
+    /// Claims the oldest pending job received no later than `before`.
     pub fn claim_embedding_job(&mut self, before: &str) -> Result<Option<EmbeddingJob>> {
         let tx = self.conn.transaction()?;
         let job = tx
@@ -431,6 +440,7 @@ impl Storage {
         Ok(job)
     }
 
+    /// Removes a completed job, preserving a newer update received while it ran.
     pub fn finish_embedding_job(&mut self, job: &EmbeddingJob) -> Result<()> {
         self.conn.execute(
             "DELETE FROM embedding_jobs
@@ -445,6 +455,7 @@ impl Storage {
         Ok(())
     }
 
+    /// Records a failure and schedules one retry before permanently failing the job.
     pub fn fail_embedding_job(
         &mut self,
         job: &EmbeddingJob,
@@ -480,6 +491,7 @@ impl Storage {
     }
 }
 
+/// Locks shared storage and converts a poisoned mutex into an error.
 pub fn lock(storage: &Mutex<Storage>) -> Result<MutexGuard<'_, Storage>> {
     storage.lock().map_err(|_| anyhow!("storage lock poisoned"))
 }

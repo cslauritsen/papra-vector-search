@@ -20,6 +20,7 @@ pub struct PapraDocumentResponse {
     pub document: PapraDocument,
 }
 
+/// Fetches a document from the configured Papra API.
 pub async fn fetch_document(
     state: &AppState,
     org_id: &str,

@@ -51,6 +51,7 @@ impl fmt::Debug for Config {
 }
 
 impl Config {
+    /// Loads and validates application settings from environment variables.
     pub fn from_env() -> Result<Self> {
         let required = |name: &str| -> Result<String> {
             env::var(name)
@@ -123,16 +124,19 @@ impl Config {
         })
     }
 
+    /// Returns the SQLite path without the `sqlite://` URL prefix.
     pub fn database_path(&self) -> &str {
         self.database_url
             .strip_prefix("sqlite://")
             .unwrap_or(&self.database_url)
     }
 
+    /// Returns the configured Google OAuth client ID.
     pub fn google_client_id(&self) -> &str {
         self.google_client_id.expose_secret()
     }
 
+    /// Returns the configured Google OAuth client secret.
     pub fn google_client_secret(&self) -> &str {
         self.google_client_secret.expose_secret()
     }

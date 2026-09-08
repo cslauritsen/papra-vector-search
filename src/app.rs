@@ -296,9 +296,7 @@ pub fn App() -> impl IntoView {
                                 </div>
                                 <div class="result-copy">
                                     <p class="result-org">{result.organization_id.clone()}</p>
-                                    <h3>
-                                        <span class="result-title-text">{result.title.clone()}</span>
-                                    </h3>
+                                    <h3><span class="result-title-text">{result.title.clone()}</span></h3>
                                     <p class="result-id">{result.papra_document_id.clone()}</p>
                                     <p class="result-snippet">"Open the document in Papra to see the full content."</p>
                                 </div>

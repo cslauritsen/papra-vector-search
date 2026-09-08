@@ -273,25 +273,25 @@ async fn extract_and_fetch_document(
     tracing::trace!(
         document_id = %doc_id,
         papra_name = ?papra_doc.name,
-        papra_text_len = ?papra_doc.text.as_ref().map(|t| t.len()),
+        papra_content_len = ?papra_doc.content.as_ref().map(|t| t.len()),
         "fetched document from Papra API"
     );
 
     let hash = papra_doc
-        .text
+        .content
         .as_deref()
         .map(embeddings::content_hash)
         .unwrap_or_else(|| String::new());
 
     let title_for_hash = papra_doc.name.as_deref().unwrap_or("");
-    let content_for_hash = papra_doc.text.as_deref().unwrap_or("");
+    let content_for_hash = papra_doc.content.as_deref().unwrap_or("");
     let input_hash = embeddings::embedding_input_hash(title_for_hash, content_for_hash);
 
     Ok(storage::DocumentUpsert {
         organization_id: org_id.to_string(),
         papra_document_id: doc_id.to_string(),
         title: papra_doc.name,
-        content: papra_doc.text,
+        content: papra_doc.content,
         content_hash: hash,
         embedding_input_hash: input_hash,
         tags: None,

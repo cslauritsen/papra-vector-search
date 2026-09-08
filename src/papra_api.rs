@@ -12,7 +12,7 @@ pub struct PapraDocument {
     pub organization_id: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
-    pub text: Option<String>,
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

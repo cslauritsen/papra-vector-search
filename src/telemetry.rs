@@ -7,8 +7,11 @@ use opentelemetry::{
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 
 #[derive(Clone)]
+/// Counters used to monitor searches and HTTP requests.
 pub struct Metrics {
+    /// Number of searches grouped by status.
     pub search_count: Arc<Counter<u64>>,
+    /// Number of HTTP requests grouped by route and status.
     pub request_count: Arc<Counter<u64>>,
 }
 

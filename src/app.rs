@@ -2,12 +2,19 @@ use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+/// Search result displayed by the frontend.
 pub struct SearchResult {
+    /// Papra organization identifier.
     pub organization_id: String,
+    /// Papra document identifier.
     pub papra_document_id: String,
+    /// Document title.
     pub title: String,
+    /// Optional document source URL.
     pub source_url: Option<String>,
+    /// Optional Papra base URL.
     pub papra_base_url: Option<String>,
+    /// Vector distance score.
     pub score: f32,
 }
 
@@ -27,19 +34,25 @@ fn papra_document_url(
 
 #[derive(Clone, Debug, Deserialize)]
 #[cfg(target_arch = "wasm32")]
+/// JSON response containing search results.
 struct SearchResponse {
+    /// Matching documents.
     results: Vec<SearchResult>,
 }
 
 #[derive(Debug, Deserialize)]
 #[cfg(target_arch = "wasm32")]
+/// JSON response containing the OAuth authorization URL.
 struct LoginResponse {
+    /// Authorization URL.
     authorization_url: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[cfg(target_arch = "wasm32")]
+/// JSON response containing service authentication state.
 struct HealthResponse {
+    /// Whether API authentication is enabled.
     auth_enabled: bool,
 }
 

@@ -26,7 +26,9 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
 }
 
 #[derive(Debug, Deserialize)]
+/// Optional response format for the OAuth login endpoint.
 pub struct OidcLoginQuery {
+    /// Set to `json` to receive the authorization URL as JSON.
     pub format: Option<String>,
 }
 
@@ -63,9 +65,13 @@ pub async fn oidc_login(
 }
 
 #[derive(Debug, Deserialize)]
+/// Parameters returned by the OAuth provider.
 pub struct OidcCallbackQuery {
+    /// OAuth authorization code.
     pub code: Option<String>,
+    /// CSRF state value returned by the provider.
     pub state: Option<String>,
+    /// Provider-reported OAuth error.
     pub error: Option<String>,
 }
 
@@ -200,7 +206,9 @@ pub async fn papra_webhook(
 }
 
 #[derive(Debug, Deserialize)]
+/// Document IDs to add to the embedding queue.
 pub struct BatchEmbeddingRequest {
+    /// Papra document identifiers.
     pub document_ids: Vec<String>,
 }
 
@@ -411,23 +419,35 @@ async fn extract_and_fetch_document(
 }
 
 #[derive(Debug, Deserialize)]
+/// Query parameters for vector search.
 pub struct SearchQuery {
+    /// Text to embed and search for.
     pub q: Option<String>,
+    /// Maximum number of results.
     pub limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
+/// Vector search response.
 pub struct SearchResponse {
+    /// Matching documents.
     pub results: Vec<SearchResult>,
 }
 
 #[derive(Debug, Serialize)]
+/// A document returned from vector search.
 pub struct SearchResult {
+    /// Papra organization identifier.
     pub organization_id: String,
+    /// Papra document identifier.
     pub papra_document_id: String,
+    /// Document title.
     pub title: String,
+    /// Optional document source URL.
     pub source_url: Option<String>,
+    /// Optional Papra base URL used by the frontend.
     pub papra_base_url: Option<String>,
+    /// Vector distance score.
     pub score: f32,
 }
 
@@ -504,8 +524,11 @@ fn header(headers: &HeaderMap, name: &str) -> Result<String, ApiError> {
 }
 
 #[derive(Debug)]
+/// Error returned by an API handler.
 pub struct ApiError {
+    /// HTTP status returned to the client.
     status: StatusCode,
+    /// Safe error message returned in the response body.
     message: String,
 }
 

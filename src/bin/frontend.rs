@@ -1,3 +1,5 @@
+//! Browser entry point for the Leptos frontend.
+
 #![cfg_attr(all(target_arch = "wasm32", feature = "csr"), no_main)]
 
 #[cfg(all(target_arch = "wasm32", feature = "csr"))]

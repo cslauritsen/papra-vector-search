@@ -6,17 +6,26 @@ use crate::AppState;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+/// Document representation returned by Papra.
 pub struct PapraDocument {
+    /// Papra document identifier.
     pub id: String,
+    /// Document title.
     pub name: Option<String>,
+    /// Owning organization identifier.
     pub organization_id: String,
+    /// Creation timestamp.
     pub created_at: Option<String>,
+    /// Last-update timestamp.
     pub updated_at: Option<String>,
+    /// Searchable document content.
     pub content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+/// Envelope returned by the Papra document endpoint.
 pub struct PapraDocumentResponse {
+    /// Document payload.
     pub document: PapraDocument,
 }
 

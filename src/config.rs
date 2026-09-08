@@ -5,22 +5,39 @@ use secrecy::{ExposeSecret, SecretString};
 use url::Url;
 
 #[derive(Clone)]
+/// Validated application configuration.
 pub struct Config {
+    /// SQLite database URL or path.
     pub database_url: String,
+    /// Filesystem path to the sqlite-vec extension.
     pub sqlite_vec_extension_path: PathBuf,
+    /// Secret used to verify Papra webhook signatures.
     pub papra_webhook_secret: SecretString,
+    /// Papra organization processed by this service.
     pub papra_organization_id: String,
+    /// Base URL for Papra API requests.
     pub papra_api_base: Url,
+    /// API key used for Papra requests.
     pub papra_api_key: SecretString,
+    /// Google OAuth client ID.
     pub google_client_id: SecretString,
+    /// Google OAuth client secret.
     pub google_client_secret: SecretString,
+    /// OAuth callback URL.
     pub google_redirect_uri: String,
+    /// OAuth issuer URL.
     pub google_issuer: String,
+    /// Email addresses permitted to authenticate.
     pub google_allowed_emails: HashSet<String>,
+    /// Whether API authentication is enforced.
     pub auth_enabled: bool,
+    /// Optional base URL used to build Papra document links.
     pub papra_base_url: Option<String>,
+    /// Maximum accepted age of a webhook timestamp, in seconds.
     pub webhook_timestamp_tolerance_seconds: i64,
+    /// Default maximum number of search results.
     pub search_result_limit: usize,
+    /// Optional OpenTelemetry exporter endpoint.
     pub otel_exporter_endpoint: Option<String>,
 }
 

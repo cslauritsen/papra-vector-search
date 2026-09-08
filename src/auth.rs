@@ -10,6 +10,7 @@ use url::Url;
 use crate::config::Config;
 
 #[derive(Clone)]
+/// OAuth and bearer-token authentication service.
 pub struct Authenticator {
     client: Client,
     issuer: String,
@@ -20,19 +21,30 @@ pub struct Authenticator {
 }
 
 #[derive(Debug, Deserialize)]
+/// Claims extracted from a validated identity token.
 pub struct Claims {
+    /// Token issuer.
     pub iss: String,
+    /// Token audience.
     pub aud: String,
+    /// Token expiration as a Unix timestamp.
     pub exp: usize,
+    /// Authenticated email address.
     pub email: Option<String>,
+    /// Hosted-domain claim, when supplied by the identity provider.
     pub hd: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+/// Tokens returned by the OAuth provider.
 pub struct OAuthTokenResponse {
+    /// OAuth access token.
     pub access_token: String,
+    /// Access-token lifetime in seconds.
     pub expires_in: u64,
+    /// Optional OpenID Connect ID token.
     pub id_token: Option<String>,
+    /// OAuth token type.
     pub token_type: String,
 }
 

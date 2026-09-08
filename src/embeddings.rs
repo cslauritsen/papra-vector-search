@@ -3,6 +3,7 @@ use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
+/// Name of the embedding model used for indexed documents.
 pub const MODEL_NAME: &str = "all-MiniLM-L6-v2";
 
 /// Builds the normalized text passed to the embedding model.

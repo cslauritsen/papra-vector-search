@@ -11,38 +11,62 @@ use serde_json::Value;
 use crate::embeddings::MODEL_NAME;
 
 #[derive(Clone, Debug)]
+/// Document fields used to update persistent storage.
 pub struct DocumentUpsert {
+    /// Papra organization identifier.
     pub organization_id: String,
+    /// Papra document identifier.
     pub papra_document_id: String,
+    /// Optional document title.
     pub title: Option<String>,
+    /// Optional searchable content.
     pub content: Option<String>,
+    /// Hash of the document content.
     pub content_hash: String,
+    /// Hash of the normalized embedding input.
     pub embedding_input_hash: String,
+    /// Optional document tags.
     pub tags: Option<Value>,
+    /// Optional document attributes.
     pub attributes: Option<Value>,
+    /// Optional source URL.
     pub source_url: Option<String>,
+    /// Embedding model used to generate the vector.
     pub embedding_model: String,
+    /// Timestamp for the update.
     pub updated_at: String,
 }
 
 #[derive(Clone, Debug)]
+/// Search result returned by the storage layer.
 pub struct SearchResult {
+    /// Papra organization identifier.
     pub organization_id: String,
+    /// Papra document identifier.
     pub papra_document_id: String,
+    /// Document title.
     pub title: String,
+    /// Optional source URL.
     pub source_url: Option<String>,
+    /// Vector distance score.
     pub score: f32,
 }
 
 #[derive(Clone, Debug)]
+/// Persisted embedding job state.
 pub struct EmbeddingJob {
+    /// Papra document identifier.
     pub document_id: String,
+    /// Timestamp of the latest enqueue operation.
     pub received_at: String,
+    /// Number of attempts already made.
     pub attempts: i64,
 }
 
+/// SQLite storage for documents, vectors, and embedding jobs.
 pub struct Storage {
     conn: Connection,
+    /// Number of dimensions in stored vectors.
     pub dimension: usize,
 }
 

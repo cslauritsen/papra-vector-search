@@ -455,6 +455,7 @@ impl Storage {
             )
             .optional()?;
         if let Some(job) = &job {
+            tracing::info!(model = MODEL_NAME, "claiming embedding job");
             tx.execute(
                 "UPDATE embedding_jobs SET status='running' WHERE document_id=? AND status='pending'",
                 [&job.document_id],

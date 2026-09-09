@@ -272,6 +272,7 @@ pub async fn embedding_worker(state: AppState) {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
     loop {
         interval.tick().await;
+        tracing::trace!("embedding worker tick");
         let cutoff = (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339();
         let job = match storage::lock(&state.storage)
             .and_then(|mut storage| storage.claim_embedding_job(&cutoff))

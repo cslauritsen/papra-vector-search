@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
+use leptos::attr::rows;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::Value;
 
@@ -402,14 +403,18 @@ impl Storage {
              WHERE v.embedding MATCH ?1 AND v.k=?2 AND d.organization_id=?3
              ORDER BY v.distance ASC",
         )?;
+        let mut ix = 0;
         let rows = stmt.query_map(params![bytes, limit as i64, organization], |row| {
-            Ok(SearchResult {
+            let r = SearchResult {
                 organization_id: row.get(0)?,
                 papra_document_id: row.get(1)?,
                 title: row.get(2)?,
                 source_url: row.get(3)?,
                 score: row.get(4)?,
-            })
+            };
+            tracing::debug!("search result[{}] doc: {} distance: {}", ix, r.papra_document_id, r.score);
+            ix += 1;
+            Ok(r)
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }

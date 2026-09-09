@@ -25,6 +25,20 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+/// Returns accumulated application counters in Prometheus text format.
+pub async fn metrics(State(state): State<AppState>) -> Result<Response, ApiError> {
+    let body = state
+        .metrics
+        .prometheus_text()
+        .map_err(|error| ApiError::internal(anyhow::Error::new(error)))?;
+    let mut response = Response::new(axum::body::Body::from(body));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
+    );
+    Ok(response)
+}
+
 #[derive(Debug, Deserialize)]
 /// Optional response format for the OAuth login endpoint.
 pub struct OidcLoginQuery {
@@ -566,6 +580,7 @@ pub async fn access_log(req: Request<axum::body::Body>, next: Next) -> Response 
     let method = req.method().to_string();
     let route = match req.uri().path() {
         "/health" => "/health",
+        "/metrics" => "/metrics",
         "/api/search" => "/api/search",
         "/api/embeddings/batch" => "/api/embeddings/batch",
         "/webhook/papra" => "/webhook/papra",
@@ -589,6 +604,7 @@ pub fn route_name(method: &str, path: &str) -> &'static str {
     let _ = method;
     match path {
         "/health" => "/health",
+        "/metrics" => "/metrics",
         "/api/search" => "/api/search",
         "/api/embeddings/batch" => "/api/embeddings/batch",
         "/webhook/papra" => "/webhook/papra",

@@ -208,7 +208,13 @@ distance:
 Do not return stored content or embeddings. Return `400` for invalid query parameters,
 `401` for missing/invalid authentication, and `500` only for unexpected server failures.
 
-## 7. Google OIDC login flow
+## 7. Prometheus metrics
+
+`GET /metrics` returns the accumulated in-process counters in Prometheus text format.
+The endpoint is intended for Prometheus scraping and does not require application
+authentication. Counters reset when the service restarts.
+
+## 8. Google OIDC login flow
 
 Implement the authorization-code flow with these endpoints:
 
@@ -225,7 +231,7 @@ use the validated OIDC `id_token` as the bearer credential for `/api/search`. Ne
 authorization codes, client secrets, access tokens, ID tokens, or state values. Reject
 missing, expired, reused, or mismatched state and do not accept arbitrary redirect URIs.
 
-## 8. Metrics
+## 9. Metrics
 
 Instrument the service with OpenTelemetry and export metrics through OTLP when
 `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Use an OpenTelemetry SDK/provider initialized
@@ -244,7 +250,7 @@ Do not use query text, document IDs, user emails, bearer tokens, organization ID
 unbounded error messages as metric attributes. Ensure the request counter records the final
 status code for both successful and failed requests.
 
-## 9. Logging and tracing
+## 10. Logging and tracing
 
 Use structured `tracing` logs with a configured `tracing-subscriber` layer. Every HTTP
 request must produce a standard access log containing the method, normalized route, status
@@ -273,7 +279,7 @@ and other sensitive fields; ensure secret-bearing values use `SecretString` so t
 fields cannot appear in trace output. Production log configuration must default to
 `info`, with trace payload logging opt-in.
 
-## 10. Leptos UI
+## 11. Leptos UI
 
 Provide a simple responsive page with:
 
@@ -288,7 +294,7 @@ The UI must send the bearer token on every API request. On `401`, clear the loca
 authentication state and redirect to the login flow. Do not put tokens in URLs, logs, or
 server-rendered HTML.
 
-## 11. Application structure
+## 12. Application structure
 
 Keep these concerns separate:
 
@@ -306,7 +312,7 @@ Initialize the embedding model and SQLite connection/extension once at applicati
 Do not load the model or extension per request. Use structured errors and return safe
 messages to clients while logging actionable server-side context without secrets.
 
-## 12. Acceptance criteria
+## 13. Acceptance criteria
 
 An implementation is complete when:
 

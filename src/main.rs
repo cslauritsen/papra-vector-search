@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
         embeddings::MODEL_NAME,
         dimension,
     )?;
-    let metrics = telemetry::Metrics::new(config.otel_exporter_endpoint.as_deref());
+    let metrics = telemetry::Metrics::new(config.otel_exporter_endpoint.as_deref())?;
     let state = AppState {
         auth: Arc::new(Authenticator::new(&config)),
         config: Arc::new(config),

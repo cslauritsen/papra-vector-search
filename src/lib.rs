@@ -68,6 +68,7 @@ pub fn router(state: AppState) -> Router {
         .route("/oidc/callback", get(api::oidc_callback))
         .route("/webhook/papra", axum::routing::post(api::papra_webhook))
         .route("/api/search", get(api::search))
+        .route("/metrics", get(api::metrics))
         .route(
             "/api/embeddings/batch",
             axum::routing::post(api::enqueue_batch),

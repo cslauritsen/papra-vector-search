@@ -1,11 +1,13 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use opentelemetry::{
     global,
-    metrics::{Counter, Meter},
+    metrics::{Counter, Histogram, Meter},
 };
 use opentelemetry_sdk::metrics::SdkMeterProvider;
-use prometheus::{Encoder, IntCounterVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder,
+};
 
 #[derive(Clone)]
 /// Counters used to monitor searches and HTTP requests.
@@ -14,9 +16,12 @@ pub struct Metrics {
     pub search_count: Arc<Counter<u64>>,
     /// Number of HTTP requests grouped by route and status.
     pub request_count: Arc<Counter<u64>>,
+    /// Duration of embedding jobs grouped by outcome.
+    pub embedding_duration: Arc<Histogram<f64>>,
     prometheus_registry: Arc<Registry>,
     prometheus_search_count: IntCounterVec,
     prometheus_request_count: IntCounterVec,
+    prometheus_embedding_duration: HistogramVec,
 }
 
 impl Metrics {
@@ -40,14 +45,29 @@ impl Metrics {
             ),
             &["method", "route", "status"],
         )?;
+        let prometheus_embedding_duration = HistogramVec::new(
+            HistogramOpts::new(
+                "papra_embedding_duration_seconds",
+                "Duration of embedding jobs grouped by outcome",
+            ),
+            &["status"],
+        )?;
         prometheus_registry.register(Box::new(prometheus_search_count.clone()))?;
         prometheus_registry.register(Box::new(prometheus_request_count.clone()))?;
+        prometheus_registry.register(Box::new(prometheus_embedding_duration.clone()))?;
         Ok(Self {
             search_count: Arc::new(meter.u64_counter("papra.search.count").build()),
             request_count: Arc::new(meter.u64_counter("papra.http.request.count").build()),
+            embedding_duration: Arc::new(
+                meter
+                    .f64_histogram("papra.embedding.duration")
+                    .with_description("Duration of embedding jobs grouped by outcome")
+                    .build(),
+            ),
             prometheus_registry,
             prometheus_search_count,
             prometheus_request_count,
+            prometheus_embedding_duration,
         })
     }
 
@@ -73,6 +93,18 @@ impl Metrics {
         self.prometheus_request_count
             .with_label_values(&[method, route, &status.to_string()])
             .inc();
+    }
+
+    /// Records the elapsed time for an embedding job grouped by outcome.
+    pub fn embedding_duration(&self, duration: Duration, status: &'static str) {
+        let seconds = duration.as_secs_f64();
+        self.embedding_duration.record(
+            seconds,
+            &[opentelemetry::KeyValue::new("status", status)],
+        );
+        self.prometheus_embedding_duration
+            .with_label_values(&[status])
+            .observe(seconds);
     }
 
     /// Encodes accumulated counters in Prometheus text format.
@@ -124,11 +156,14 @@ mod tests {
         let metrics = Metrics::new(None).unwrap();
         metrics.search("success");
         metrics.request("GET", "/metrics", 200);
+        metrics.embedding_duration(Duration::from_millis(250), "success");
         let output = metrics.prometheus_text().unwrap();
 
         assert!(output.contains("papra_search{status=\"success\"} 1"));
         assert!(output.contains(
             "papra_http_requests{method=\"GET\",route=\"/metrics\",status=\"200\"} 1"
         ));
+        assert!(output.contains("papra_embedding_duration_seconds_count{status=\"success\"} 1"));
+        assert!(output.contains("papra_embedding_duration_seconds_sum{status=\"success\"} 0.25"));
     }
 }

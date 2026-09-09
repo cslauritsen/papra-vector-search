@@ -245,6 +245,9 @@ Required custom instruments:
 - `papra.http.request.count`: counter incremented once for every HTTP request, with
   `http.method`, normalized route (`/health`, `/api/search`, `/webhook/papra`, or `/`), and
   `http.response.status_code` attributes.
+- `papra.embedding.duration`: histogram of embedding job durations in seconds, grouped by
+  `status` (`success` or `error`). The Prometheus equivalent is
+  `papra_embedding_duration_seconds`.
 
 Do not use query text, document IDs, user emails, bearer tokens, organization IDs, or
 unbounded error messages as metric attributes. Ensure the request counter records the final

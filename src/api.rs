@@ -306,8 +306,16 @@ pub async fn embedding_worker(state: AppState) {
                 "organizationId": state.config.papra_organization_id
             }
         });
+        let started = Instant::now();
         match process_webhook_document(state.clone(), payload).await {
             Ok(()) => {
+                let duration = started.elapsed();
+                state.metrics.embedding_duration(duration, "success");
+                tracing::info!(
+                    document_id = %job.document_id,
+                    duration_ms = duration.as_millis() as u64,
+                    "embedding job completed"
+                );
                 if let Err(error) = storage::lock(&state.storage)
                     .and_then(|mut storage| storage.finish_embedding_job(&job))
                 {
@@ -315,6 +323,13 @@ pub async fn embedding_worker(state: AppState) {
                 }
             }
             Err(error) => {
+                let duration = started.elapsed();
+                state.metrics.embedding_duration(duration, "error");
+                tracing::info!(
+                    document_id = %job.document_id,
+                    duration_ms = duration.as_millis() as u64,
+                    "embedding job failed"
+                );
                 tracing::error!(error = %error, document_id = %job.document_id, "embedding job failed");
                 if let Err(storage_error) = storage::lock(&state.storage).and_then(|mut storage| {
                     storage.fail_embedding_job(

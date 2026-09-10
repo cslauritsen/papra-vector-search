@@ -10,6 +10,8 @@ pub struct SearchResult {
     pub papra_document_id: String,
     /// Document title.
     pub title: String,
+    /// Document tags.
+    pub tags: Vec<String>,
     /// Optional document source URL.
     pub source_url: Option<String>,
     /// Optional Papra base URL.
@@ -339,7 +341,13 @@ pub fn App() -> impl IntoView {
                                     <p class="result-org">{result.organization_id.clone()}</p>
                                     <h3><span class="result-title-text">{result.title.clone()}</span></h3>
                                     <p class="result-id">{result.papra_document_id.clone()}</p>
-                                    <p class="result-snippet">"Open the document in Papra to see the full content."</p>
+                                    <p class="result-snippet">
+                                        {if result.tags.is_empty() {
+                                            "No tags".to_owned()
+                                        } else {
+                                            format!("Tags: {}", result.tags.join(" · "))
+                                        }}
+                                    </p>
                                 </div>
                                 <div class="result-meta">
                                     <span class="score">{match_label(result.score, &results.get())}</span>

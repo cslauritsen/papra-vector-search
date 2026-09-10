@@ -198,6 +198,7 @@ distance:
       "organization_id": "org_123",
       "papra_document_id": "doc_456",
       "title": "Example document",
+      "tags": ["project", "planning"],
       "source_url": "https://papra.example/documents/doc_456",
       "score": 0.12
     }

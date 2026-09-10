@@ -498,6 +498,8 @@ pub struct SearchResult {
     pub papra_document_id: String,
     /// Document title.
     pub title: String,
+    /// Document tags.
+    pub tags: Vec<String>,
     /// Optional document source URL.
     pub source_url: Option<String>,
     /// Optional Papra base URL used by the frontend.
@@ -562,6 +564,7 @@ pub async fn search(
                 organization_id: r.organization_id,
                 papra_document_id: r.papra_document_id,
                 title: r.title,
+                tags: r.tags,
                 source_url: r.source_url,
                 papra_base_url: state.config.papra_base_url.clone(),
                 score: r.score,

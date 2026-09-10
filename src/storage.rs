@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params, types::Type};
 use serde_json::Value;
 
 use crate::embeddings::MODEL_NAME;
@@ -46,6 +46,8 @@ pub struct SearchResult {
     pub papra_document_id: String,
     /// Document title.
     pub title: String,
+    /// Document tags.
+    pub tags: Vec<String>,
     /// Optional source URL.
     pub source_url: Option<String>,
     /// Vector distance score.
@@ -397,19 +399,24 @@ impl Storage {
             .flat_map(|v| v.to_le_bytes())
             .collect::<Vec<_>>();
         let mut stmt = self.conn.prepare(
-            "SELECT d.organization_id,d.papra_document_id,d.title,d.source_url,v.distance
+            "SELECT d.organization_id,d.papra_document_id,d.title,d.tags,d.source_url,v.distance
              FROM vec_documents v JOIN documents d ON d.id=v.document_id
              WHERE v.embedding MATCH ?1 AND v.k=?2 AND d.organization_id=?3
              ORDER BY v.distance ASC",
         )?;
         let mut ix = 0;
         let rows = stmt.query_map(params![bytes, limit as i64, organization], |row| {
+            let tags_json: String = row.get(3)?;
+            let tags = serde_json::from_str(&tags_json).map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(3, Type::Text, Box::new(error))
+            })?;
             let r = SearchResult {
                 organization_id: row.get(0)?,
                 papra_document_id: row.get(1)?,
                 title: row.get(2)?,
-                source_url: row.get(3)?,
-                score: row.get(4)?,
+                tags,
+                source_url: row.get(4)?,
+                score: row.get(5)?,
             };
             tracing::debug!("search result[{}] doc: {} distance: {}", ix, r.papra_document_id, r.score);
             ix += 1;

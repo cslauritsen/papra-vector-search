@@ -1,35 +1,15 @@
 use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use papra_api_client::models::Document;
 use secrecy::ExposeSecret;
+use serde::Deserialize;
 
 use crate::AppState;
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-/// Document representation returned by Papra.
-pub struct PapraDocument {
-    /// Papra document identifier.
-    pub id: String,
-    /// Document title.
-    pub name: Option<String>,
-    /// Owning organization identifier.
-    pub organization_id: String,
-    /// Creation timestamp.
-    pub created_at: Option<String>,
-    /// Last-update timestamp.
-    pub updated_at: Option<String>,
-    /// Searchable document content.
-    pub content: Option<String>,
-    /// Papra tag objects associated with the document.
-    pub tags: Option<Value>,
-}
 
 #[derive(Debug, Deserialize)]
 /// Envelope returned by the Papra document endpoint.
 pub struct PapraDocumentResponse {
     /// Document payload.
-    pub document: PapraDocument,
+    pub document: Document,
 }
 
 /// Fetches a document from the configured Papra API.
@@ -37,7 +17,7 @@ pub async fn fetch_document(
     state: &AppState,
     org_id: &str,
     document_id: &str,
-) -> Result<PapraDocument> {
+) -> Result<Document> {
     let url = state
         .config
         .papra_api_base

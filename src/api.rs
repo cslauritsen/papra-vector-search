@@ -454,18 +454,18 @@ async fn extract_and_fetch_document(
         .map(embeddings::content_hash)
         .unwrap_or_else(|| String::new());
 
-    let title_for_hash = papra_doc.name.as_deref().unwrap_or("");
+    let title_for_hash = papra_doc.name.as_str();
     let content_for_hash = papra_doc.content.as_deref().unwrap_or("");
     let input_hash = embeddings::embedding_input_hash(title_for_hash, content_for_hash);
 
     Ok(storage::DocumentUpsert {
         organization_id: org_id.to_string(),
         papra_document_id: doc_id.to_string(),
-        title: papra_doc.name,
+        title: Some(papra_doc.name),
         content: papra_doc.content,
         content_hash: hash,
         embedding_input_hash: input_hash,
-        tags: papra_doc.tags,
+        tags: Some(serde_json::to_value(papra_doc.tags)?),
         attributes: None,
         source_url: None,
         embedding_model: embeddings::MODEL_NAME.to_string(),

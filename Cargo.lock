@@ -2503,6 +2503,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "papra-api-client"
+version = "0.1.0"
+source = "git+https://github.com/cslauritsen/papra-api-client?tag=0.1.0#ad6b1def1bf9ac6139dac20bb3103bb8eb1cf400"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "papra-vector-search"
 version = "0.1.0"
 dependencies = [
@@ -2520,6 +2535,7 @@ dependencies = [
  "leptos",
  "opentelemetry",
  "opentelemetry_sdk",
+ "papra-api-client",
  "prometheus",
  "reqwest",
  "rusqlite",

@@ -5,7 +5,6 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use leptos::attr::rows;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::Value;
 

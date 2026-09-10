@@ -465,7 +465,7 @@ async fn extract_and_fetch_document(
         content: papra_doc.content,
         content_hash: hash,
         embedding_input_hash: input_hash,
-        tags: None,
+        tags: papra_doc.tags,
         attributes: None,
         source_url: None,
         embedding_model: embeddings::MODEL_NAME.to_string(),

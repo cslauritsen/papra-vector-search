@@ -54,6 +54,24 @@ pub struct SearchResult {
     pub score: f32,
 }
 
+fn parse_tag_names(tags_json: &str) -> Result<Vec<String>, String> {
+    let tags: Value = serde_json::from_str(tags_json).map_err(|error| error.to_string())?;
+    tags.as_array()
+        .ok_or_else(|| "document tags must be an array".to_owned())?
+        .iter()
+        .map(|tag| {
+            tag.as_str()
+                .map(ToOwned::to_owned)
+                .or_else(|| {
+                    tag.get("name")
+                        .and_then(Value::as_str)
+                        .map(ToOwned::to_owned)
+                })
+                .ok_or_else(|| "document tag must contain a string name".to_owned())
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug)]
 /// Persisted embedding job state.
 pub struct EmbeddingJob {
@@ -407,8 +425,12 @@ impl Storage {
         let mut ix = 0;
         let rows = stmt.query_map(params![bytes, limit as i64, organization], |row| {
             let tags_json: String = row.get(3)?;
-            let tags = serde_json::from_str(&tags_json).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(3, Type::Text, Box::new(error))
+            let tags = parse_tag_names(&tags_json).map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    Type::Text,
+                    Box::new(std::io::Error::other(error)),
+                )
             })?;
             let r = SearchResult {
                 organization_id: row.get(0)?,
@@ -585,6 +607,15 @@ mod tests {
         assert_eq!(row.0, "two");
         assert_eq!(row.1, "h1");
         assert_eq!(row.2, r#"["new"]"#);
+    }
+
+    #[test]
+    fn parses_papra_tag_objects_for_search_results() {
+        let tags = parse_tag_names(
+            r##"[{"id":"tag-1","name":"2026"},{"id":"tag-2","name":"credit_card"}]"##,
+        )
+        .unwrap();
+        assert_eq!(tags, vec!["2026", "credit_card"]);
     }
 
     #[test]

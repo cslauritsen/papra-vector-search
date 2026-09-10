@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use secrecy::ExposeSecret;
 
 use crate::AppState;
@@ -20,6 +21,8 @@ pub struct PapraDocument {
     pub updated_at: Option<String>,
     /// Searchable document content.
     pub content: Option<String>,
+    /// Papra tag objects associated with the document.
+    pub tags: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]

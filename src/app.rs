@@ -32,6 +32,18 @@ fn papra_document_url(
     )
 }
 
+fn match_label(score: f32, results: &[SearchResult]) -> &'static str {
+    let rank = results
+        .iter()
+        .filter(|result| result.score < score)
+        .count();
+    match rank {
+        0 => "Best match",
+        1..=2 => "Very relevant",
+        _ => "Related",
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[cfg(target_arch = "wasm32")]
 /// JSON response containing search results.
@@ -330,7 +342,7 @@ pub fn App() -> impl IntoView {
                                     <p class="result-snippet">"Open the document in Papra to see the full content."</p>
                                 </div>
                                 <div class="result-meta">
-                                    <span class="score">{format!("{:.0}% match", (1.0 - result.score).max(0.0) * 100.0)}</span>
+                                    <span class="score">{match_label(result.score, &results.get())}</span>
                                     <a class="source-link" href=papra_document_url(result.papra_base_url.as_deref(), &result.organization_id, &result.papra_document_id) target="_blank" rel="noreferrer">"Open in Papra ↗"</a>
                                 </div>
                             </article>

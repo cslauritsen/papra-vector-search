@@ -283,9 +283,7 @@ fn validate_webhook_payload(payload: &Value, expected_org: &str) -> anyhow::Resu
 
 /// Polls and processes one eligible embedding job at a time.
 pub async fn embedding_worker(state: AppState) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
     loop {
-        interval.tick().await;
         tracing::trace!("embedding worker tick");
         let cutoff = (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339();
         let job = match storage::lock(&state.storage)
@@ -298,6 +296,33 @@ pub async fn embedding_worker(state: AppState) {
             }
         };
         let Some(job) = job else {
+            let wait = match storage::lock(&state.storage)
+                .and_then(|storage| storage.next_embedding_job_at())
+            {
+                Ok(Some(received_at)) => {
+                    match chrono::DateTime::parse_from_rfc3339(&received_at) {
+                        Ok(received_at) => (received_at.with_timezone(&Utc)
+                            + chrono::Duration::minutes(1)
+                            - Utc::now())
+                            .to_std()
+                            .unwrap_or_default(),
+                        Err(error) => {
+                            tracing::error!(
+                                error = %error,
+                                received_at = %received_at,
+                                "invalid embedding job timestamp"
+                            );
+                            std::time::Duration::from_secs(60)
+                        }
+                    }
+                }
+                Ok(None) => std::time::Duration::from_secs(60),
+                Err(error) => {
+                    tracing::error!(error = %error, "failed to inspect pending embedding jobs");
+                    std::time::Duration::from_secs(60)
+                }
+            };
+            tokio::time::sleep(wait).await;
             continue;
         };
         let payload = json!({

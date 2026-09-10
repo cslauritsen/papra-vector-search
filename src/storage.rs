@@ -469,6 +469,22 @@ impl Storage {
         Ok(job)
     }
 
+    /// Returns the enqueue timestamp of the oldest pending job.
+    pub fn next_embedding_job_at(&self) -> Result<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT received_at
+                 FROM embedding_jobs
+                 WHERE status='pending'
+                 ORDER BY received_at ASC
+                 LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
     /// Removes a completed job, preserving a newer update received while it ran.
     pub fn finish_embedding_job(&mut self, job: &EmbeddingJob) -> Result<()> {
         self.conn.execute(
